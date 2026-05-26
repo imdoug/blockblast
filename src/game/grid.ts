@@ -1,85 +1,174 @@
-import { Grid, Piece } from "../types";
- 
+// src/game/grid.ts
+
+import { Grid, Piece, ObstacleGrid } from "../types";
+
 export const GRID_SIZE = 8;
- 
-// Creates a fresh empty 8x8 grid.
-// We use Array.from with a map function to create independent row arrays.
-// WARNING: Never use Array(8).fill(Array(8).fill(null)).
-// That creates 8 references to the SAME inner array. Mutating one row mutates all.
+
 export function createGrid(): Grid {
-  return Array.from({ length: GRID_SIZE }, () =>
+  return Array.from({ length: GRID_SIZE }, () => Array(GRID_SIZE).fill(null));
+}
+
+export function createObstacleGrid(
+  defs: { row: number; col: number; durability: number }[]
+): ObstacleGrid {
+  const grid: ObstacleGrid = Array.from({ length: GRID_SIZE }, () =>
     Array(GRID_SIZE).fill(null)
   );
+  for (const { row, col, durability } of defs) {
+    if (row >= 0 && row < GRID_SIZE && col >= 0 && col < GRID_SIZE) {
+      grid[row][col] = { durability, maxDurability: durability };
+    }
+  }
+  return grid;
 }
- 
-// Returns true if the piece can be placed at the given top-left corner.
-// Checks: piece stays within grid bounds, and no cell overlaps an existing block.
-export function canPlace(grid: Grid, piece: Piece, row: number, col: number): boolean {
+
+export function canPlace(
+  grid: Grid,
+  piece: Piece,
+  row: number,
+  col: number,
+  obstacles?: ObstacleGrid
+): boolean {
   for (let r = 0; r < piece.shape.length; r++) {
     for (let c = 0; c < piece.shape[r].length; c++) {
-      if (!piece.shape[r][c]) continue;  // Skip empty cells in piece shape
-      const gr = row + r;
-      const gc = col + c;
-      if (gr < 0 || gr >= GRID_SIZE) return false;  // Out of bounds vertically
-      if (gc < 0 || gc >= GRID_SIZE) return false;  // Out of bounds horizontally
-      if (grid[gr][gc] !== null) return false;       // Cell already occupied
+      if (!piece.shape[r][c]) continue;
+      const gr = row + r, gc = col + c;
+      if (gr < 0 || gr >= GRID_SIZE || gc < 0 || gc >= GRID_SIZE) return false;
+      if (grid[gr][gc] !== null) return false;
+      if (obstacles && obstacles[gr][gc] !== null) return false;
     }
   }
   return true;
 }
- 
-// Places a piece on the grid and returns the NEW grid.
-// We never mutate the existing grid — we clone it first.
-// Immutability is critical for React state: if you mutate the grid array directly,
-// React will not detect the change and will not re-render.
+
 export function placePiece(grid: Grid, piece: Piece, row: number, col: number): Grid {
-  const next = grid.map(r => [...r]);  // Deep clone: new array, new rows
-  for (let r = 0; r < piece.shape.length; r++) {
-    for (let c = 0; c < piece.shape[r].length; c++) {
-      if (piece.shape[r][c]) {
-        next[row + r][col + c] = piece.color;
-      }
-    }
-  }
+  const next = grid.map(r => [...r]);
+  for (let r = 0; r < piece.shape.length; r++)
+    for (let c = 0; c < piece.shape[r].length; c++)
+      if (piece.shape[r][c]) next[row + r][col + c] = piece.color;
   return next;
 }
- 
-// Scans all rows and columns. Removes any that are fully filled.
-// Returns the new grid and a count of how many lines were cleared.
-// Lines cleared in one drop count together for combo scoring.
-export function clearLines(grid: Grid): { grid: Grid; linesCleared: number } {
-  const next = grid.map(r => [...r]);
-  let linesCleared = 0;
- 
-  // Check rows
+
+// ─── clearLines ───────────────────────────────────────────────────────────────
+//
+// CRITICAL FIX: We scan ALL rows AND columns for completion BEFORE clearing
+// anything. The previous version scanned rows first, cleared them (setting
+// cells to null), then scanned columns — cleared cells appeared empty so valid
+// columns were never detected.
+//
+// Fix: two-pass approach:
+//   Pass 1 — identify every row and column that is currently complete
+//   Pass 2 — apply all clears and obstacle hits atomically
+//
+// A row/col is complete when every cell has EITHER a piece OR an obstacle.
+// Obstacles absorb a hit when their row/col clears. If the same obstacle cell
+// is in BOTH a cleared row AND a cleared column, it takes 2 hits (double clear
+// bonus — a reward for strategic play around obstacles).
+//
+// Returns:
+//   grid            — updated piece grid
+//   obstacles       — updated obstacle grid (hits applied, 0-durability removed)
+//   linesCleared    — total rows + cols cleared (for combo scoring)
+//   obstaclesHit    — how many obstacle hits occurred (for bonus scoring)
+//   obstaclesDestroyed — how many obstacles reached 0 and were removed
+
+export function clearLines(
+  grid: Grid,
+  obstacles?: ObstacleGrid
+): {
+  grid: Grid;
+  obstacles: ObstacleGrid;
+  linesCleared: number;
+  obstaclesHit: number;
+  obstaclesDestroyed: number;
+} {
+  const obs: ObstacleGrid = obstacles
+    ? obstacles.map(r => r.map(c => (c ? { ...c } : null)))
+    : Array.from({ length: GRID_SIZE }, () => Array(GRID_SIZE).fill(null));
+
+  // ── Pass 1: identify complete rows and columns ───────────────────────────
+  // Use original grid state — do NOT check the mutated version.
+  const rowsToClear: number[] = [];
+  const colsToClear: number[] = [];
+
   for (let r = 0; r < GRID_SIZE; r++) {
-    if (next[r].every(cell => cell !== null)) {
-      next[r] = Array(GRID_SIZE).fill(null);
-      linesCleared++;
+    if (grid[r].every((cell, c) => cell !== null || obs[r][c] !== null)) {
+      rowsToClear.push(r);
     }
   }
- 
-  // Check columns
   for (let c = 0; c < GRID_SIZE; c++) {
-    if (next.every(row => row[c] !== null)) {
-      for (let r = 0; r < GRID_SIZE; r++) next[r][c] = null;
-      linesCleared++;
+    if (grid.every((row, r) => row[c] !== null || obs[r][c] !== null)) {
+      colsToClear.push(c);
     }
   }
- 
-  return { grid: next, linesCleared };
-}
- 
-// Checks if ANY of the pieces in the tray can be placed anywhere on the grid.
-// If this returns false, the player is stuck and the level ends early.
-export function hasAnyValidMove(grid: Grid, pieces: (Piece | null)[]): boolean {
-  for (const piece of pieces) {
-    if (!piece) continue;
-    for (let r = 0; r <= GRID_SIZE - piece.shape.length; r++) {
-      for (let c = 0; c <= GRID_SIZE - piece.shape[0].length; c++) {
-        if (canPlace(grid, piece, r, c)) return true;
+
+  if (rowsToClear.length === 0 && colsToClear.length === 0) {
+    return { grid, obstacles: obs, linesCleared: 0, obstaclesHit: 0, obstaclesDestroyed: 0 };
+  }
+
+  // ── Pass 2: apply all clears atomically ──────────────────────────────────
+  const newGrid = grid.map(r => [...r]);
+  // Track how many hits each obstacle cell takes (could be in both row + col)
+  const hitsMap: number[][] = Array.from({ length: GRID_SIZE }, () =>
+    Array(GRID_SIZE).fill(0)
+  );
+
+  for (const r of rowsToClear) {
+    for (let c = 0; c < GRID_SIZE; c++) {
+      newGrid[r][c] = null;
+      if (obs[r][c] !== null) hitsMap[r][c]++;
+    }
+  }
+
+  for (const c of colsToClear) {
+    for (let r = 0; r < GRID_SIZE; r++) {
+      newGrid[r][c] = null;
+      if (obs[r][c] !== null) hitsMap[r][c]++;
+    }
+  }
+
+  // Apply accumulated hits to obstacles
+  let obstaclesHit = 0;
+  let obstaclesDestroyed = 0;
+
+  for (let r = 0; r < GRID_SIZE; r++) {
+    for (let c = 0; c < GRID_SIZE; c++) {
+      const hits = hitsMap[r][c];
+      if (hits === 0) continue;
+      obstaclesHit += hits;
+      const current = obs[r][c];
+      if (!current) continue;
+      const newDur = current.durability - hits;
+      if (newDur <= 0) {
+        obs[r][c] = null;
+        obstaclesDestroyed++;
+      } else {
+        obs[r][c] = { ...current, durability: newDur };
       }
     }
+  }
+
+  return {
+    grid: newGrid,
+    obstacles: obs,
+    linesCleared: rowsToClear.length + colsToClear.length,
+    obstaclesHit,
+    obstaclesDestroyed,
+  };
+}
+
+export function hasAnyValidMove(
+  grid: Grid,
+  pieces: (Piece | null)[],
+  obstacles?: ObstacleGrid
+): boolean {
+  for (const piece of pieces) {
+    if (!piece) continue;
+    for (let r = 0; r <= GRID_SIZE - piece.shape.length; r++)
+      for (let c = 0; c <= GRID_SIZE - piece.shape[0].length; c++)
+        if (canPlace(grid, piece, r, c, obstacles)) return true;
   }
   return false;
 }
+
+export { Grid };

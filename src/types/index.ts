@@ -1,46 +1,52 @@
-// The game grid is a 2D array of 8 rows and 8 columns.
-// Each cell is either null (empty) or a number (the color index of the piece that filled it).
+// src/types/index.ts
+
 export type Grid = (number | null)[][];
- 
-// A Piece is one of the shapes from our PIECES array.
-// shape is a 2D array where 1 = filled cell, 0 = empty.
-// color is an index into the COLORS array.
+
 export interface Piece {
   shape: number[][];
   color: number;
 }
- 
-// The tray always holds exactly 3 slots.
-// A slot can be null if the piece has been placed and not yet refilled.
+
 export type Tray = [Piece | null, Piece | null, Piece | null];
- 
-// LevelConfig defines everything about a single level.
+
+// ─── Obstacle cell ────────────────────────────────────────────────────────────
+// Obstacles are pre-placed cells that can't be moved through.
+// They take "hits" when a row or column containing them is completed.
+// At 0 durability they are destroyed and the cell becomes empty.
+// This means players can clear rows "through" obstacles — the row still
+// scores and clears, but the obstacle absorbs a hit instead of disappearing
+// until its durability is fully depleted.
+
+export interface ObstacleCell {
+  durability: number;     // current hits remaining
+  maxDurability: number;  // starting durability (for visual rendering)
+}
+
+// ObstacleGrid is a separate layer that overlays the piece grid.
+// Keeping them separate means all existing piece logic (canPlace, clearLines)
+// requires only minimal changes — we just pass the obstacle layer as an
+// optional extra parameter.
+export type ObstacleGrid = (ObstacleCell | null)[][];
+
 export interface LevelConfig {
-  id: number;           // 1-99
-  pieceCount: number;   // Total pieces the player gets
-  targetScore: number;  // Minimum score to pass (1 star)
-  star2Score: number;   // Score for 2 stars
-  star3Score: number;   // Score for 3 stars
+  id: number;
+  pieceCount: number;
+  targetScore: number;
+  star2Score: number;
+  star3Score: number;
+  obstacles: ObstacleDef[];
 }
- 
-// GamePhase tracks what state the level is in.
-// This drives which UI to show (game board, results screen, etc).
-export type GamePhase =
-  | 'playing'       // Active gameplay
-  | 'won'           // pieceCount hit 0, score >= targetScore
-  | 'failed'        // pieceCount hit 0, score < targetScore
-  | 'stuck'         // No valid moves remain (early termination)
-  | 'paused';
- 
-// GameState is the complete snapshot of a level at any point in time.
-// The useGameState hook manages this object.
-export interface GameState {
-  grid: Grid;
-  tray: Tray;
-  selectedIndex: number;    // Which tray slot is active (0, 1, or 2)
+
+// ObstacleDef defines where obstacles start on the board for a given level.
+export interface ObstacleDef {
+  row: number;
+  col: number;
+  durability: number;
+}
+
+export interface LevelResult {
+  stars: number;
   score: number;
-  piecesRemaining: number;  // Counts down from level.pieceCount to 0
-  combo: number;            // Consecutive line-clearing drops
-  phase: GamePhase;
-  level: LevelConfig;
 }
+
+export type GamePhase = "playing" | "won" | "failed" | "stuck";
