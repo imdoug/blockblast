@@ -15,6 +15,7 @@ const KEYS = {
   CLASSIC_BEST:  "bb_classic_best",
   STREAK:        "bb_streak",
   DAILY_RESULT:  "bb_daily_result",
+  OBSTACLE_TIP_SEEN: "bb_obstacle_tip_seen",
 } as const;
 
 // ─── Level Progress ───────────────────────────────────────────────────────────
@@ -113,6 +114,23 @@ export async function saveDailyResult(score: number, stars: number): Promise<voi
   try {
     const today = new Date().toISOString().split("T")[0];
     await AsyncStorage.setItem(KEYS.DAILY_RESULT, JSON.stringify({ date: today, score, stars }));
+  } catch {}
+}
+
+// ─── Obstacle tutorial ───────────────────────────────────────────────────────
+// Tracks whether the one-time obstacle tutorial tooltip has been shown.
+// Once seen it never appears again — we store a simple boolean flag.
+
+export async function hasSeenObstacleTip(): Promise<boolean> {
+  try {
+    const val = await AsyncStorage.getItem(KEYS.OBSTACLE_TIP_SEEN);
+    return val === "true";
+  } catch { return false; }
+}
+
+export async function markObstacleTipSeen(): Promise<void> {
+  try {
+    await AsyncStorage.setItem(KEYS.OBSTACLE_TIP_SEEN, "true");
   } catch {}
 }
 

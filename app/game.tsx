@@ -1,103 +1,52 @@
+// app/game.tsx — Classic endless mode with personal best tracking
+
 import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  PanResponder,
-  Animated,
-  Dimensions,
+  View, Text, StyleSheet, TouchableOpacity, Alert,
+  PanResponder, Animated, Dimensions,
 } from "react-native";
 import { useRef, useState, useCallback, useEffect } from "react";
 import { router } from "expo-router";
 import { COLORS, SIZES } from "../src/constants/theme";
 import {
-  createGrid,
-  canPlace,
-  placePiece,
-  clearLines,
-  hasAnyValidMove,
+  createGrid, canPlace, placePiece, clearLines, hasAnyValidMove,
 } from "../src/game/grid";
-import { randomPiece } from "../src/game/pieces";
+import { drawWeightedTray, PIECES } from "../src/game/pieces";
 import { calculateScore, countCells } from "../src/game/scoring";
+import { loadClassicBest, saveClassicBest } from "../src/store/storage";
+import { useHaptics } from "../src/hooks/useHaptics";
+import { AnimatedScore } from "../src/components/AnimatedScore";
+import { useSound } from "../src/hooks/useSound";
 import { Grid, Piece, Tray } from "../src/types";
 
-// ─── Responsive sizing ────────────────────────────────────────────────────────
-// Calculate cell size so the entire game fits on any screen without scrolling.
-// We subtract all fixed-height elements from screen height, then divide by 8.
-const SCREEN_H = Dimensions.get("window").height;
-const SCREEN_W = Dimensions.get("window").width;
-
-const HEADER_H     = 44;   // back button row
-const SCOREBAR_H   = 90;   // level + bar + score text
-const HINT_H       = 28;   // hint text
-const TRAY_H       = 92;   // piece tray
-const PADDING_V    = 56 + 16 + 12 + 10 + 16; // paddingTop + gaps + margins
-
-const AVAILABLE_H  = SCREEN_H - HEADER_H - SCOREBAR_H - HINT_H - TRAY_H - PADDING_V;
-const AVAILABLE_W  = SCREEN_W - 32; // 16px padding each side
-
-// Cell size = smallest of: space available vertically or horizontally for 8 cells
-const GAP          = 4;
-const RAW_CELL     = Math.floor(Math.min(AVAILABLE_H, AVAILABLE_W) / 8) - GAP;
-const CELL_SIZE    = Math.max(30, Math.min(RAW_CELL, 46)); // clamp 30–46px
-const CELL_STEP    = CELL_SIZE + GAP;
-const CELL_RADIUS  = Math.round(CELL_SIZE * 0.22);
-const LIFT_OFFSET  = 110;
-
-// ─── Level config ─────────────────────────────────────────────────────────────
-interface LevelConfig {
-  id: number;
-  pieceCount: number;
-  targetScore: number;
-  star2Score: number;
-  star3Score: number;
-}
-
-function generateLevel(id: number): LevelConfig {
-  const pieceCount = Math.max(8, Math.round(30 - (id - 1) * 0.22 * (1 + id / 99)));
-  const targetScore = Math.round(300 * Math.pow(id, 1.35));
-  return {
-    id,
-    pieceCount,
-    targetScore,
-    star2Score: Math.round(targetScore * 1.5),
-    star3Score: Math.round(targetScore * 2.0),
-  };
-}
-
-const DEFAULT_LEVEL = generateLevel(1);
-
-type GamePhase = "playing" | "won" | "failed" | "stuck";
+// ─── Sizing ───────────────────────────────────────────────────────────────────
+const SCREEN_H  = Dimensions.get("window").height;
+const SCREEN_W  = Dimensions.get("window").width;
+const GAP       = 4;
+const AVAILABLE = Math.min(SCREEN_H * 0.52, SCREEN_W - 32);
+const CELL_SIZE = Math.max(30, Math.min(Math.floor(AVAILABLE / 8) - GAP, 46));
+const CELL_STEP = CELL_SIZE + GAP;
+const CELL_R    = Math.round(CELL_SIZE * 0.22);
+const LIFT      = 110;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function fingerToGridCell(
-  fingerX: number,
-  fingerY: number,
-  gridOrigin: { x: number; y: number },
-  piece: Piece
-) {
-  const col = Math.floor((fingerX - gridOrigin.x) / CELL_STEP) - Math.floor(piece.shape[0].length / 2);
-  const row = Math.floor((fingerY - gridOrigin.y) / CELL_STEP) - Math.floor(piece.shape.length / 2);
-  return { row, col };
+function fingerToCell(fx: number, fy: number, o: { x: number; y: number }, piece: Piece) {
+  return {
+    col: Math.floor((fx - o.x) / CELL_STEP) - Math.floor(piece.shape[0].length / 2),
+    row: Math.floor((fy - o.y) / CELL_STEP) - Math.floor(piece.shape.length / 2),
+  };
 }
-
-function clampToGrid(row: number, col: number, piece: Piece) {
+function clamp(row: number, col: number, piece: Piece) {
   return {
     row: Math.max(0, Math.min(row, 8 - piece.shape.length)),
     col: Math.max(0, Math.min(col, 8 - piece.shape[0].length)),
   };
 }
-
-function getStars(score: number, level: LevelConfig): number {
-  if (score >= level.star3Score) return 3;
-  if (score >= level.star2Score) return 2;
-  if (score >= level.targetScore) return 1;
-  return 0;
+function getPieceIdx(piece: Piece): number {
+  return PIECES.findIndex(p => JSON.stringify(p.shape) === JSON.stringify(piece.shape)) ?? 0;
 }
 
-// ─── Mini Piece ───────────────────────────────────────────────────────────────
-
+// ─── Mini piece ───────────────────────────────────────────────────────────────
 function MiniPiece({ piece }: { piece: Piece }) {
   const color = COLORS.pieces[piece.color];
   const sz = Math.max(10, Math.min(14, CELL_SIZE * 0.32));
@@ -117,8 +66,7 @@ function MiniPiece({ piece }: { piece: Piece }) {
   );
 }
 
-// ─── Drag Shadow ──────────────────────────────────────────────────────────────
-
+// ─── Drag shadow ──────────────────────────────────────────────────────────────
 function DragShadow({ piece, position }: { piece: Piece; position: Animated.ValueXY }) {
   const color = COLORS.pieces[piece.color];
   const dc = CELL_SIZE * 1.1;
@@ -131,13 +79,9 @@ function DragShadow({ piece, position }: { piece: Piece; position: Animated.Valu
         <View key={r} style={{ flexDirection: "row" }}>
           {row.map((cell, c) => (
             <View key={c} style={{
-              width: dc, height: dc, margin: 2, borderRadius: CELL_RADIUS,
+              width: dc, height: dc, margin: 2, borderRadius: CELL_R,
               backgroundColor: cell ? color.fill : "transparent",
-              opacity: cell ? 0.9 : 0,
-              shadowColor: color.fill,
-              shadowOpacity: 0.6,
-              shadowRadius: 8,
-              shadowOffset: { width: 0, height: 3 },
+              opacity: cell ? 0.88 : 0,
             }} />
           ))}
         </View>
@@ -146,166 +90,82 @@ function DragShadow({ piece, position }: { piece: Piece; position: Animated.Valu
   );
 }
 
-// ─── Score Bar ────────────────────────────────────────────────────────────────
-
-function ScoreBar({ score, level, piecesRemaining }: {
-  score: number; level: LevelConfig; piecesRemaining: number;
+// ─── Game Over screen ─────────────────────────────────────────────────────────
+function GameOverScreen({
+  score, best, isNewRecord, piecesPlaced, linesCleared, bestCombo,
+  onReplay, onHome,
+}: {
+  score: number; best: number; isNewRecord: boolean;
+  piecesPlaced: number; linesCleared: number; bestCombo: number;
+  onReplay: () => void; onHome: () => void;
 }) {
-  const progress = Math.min(score / level.targetScore, 1);
-  const progressAnim = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    Animated.timing(progressAnim, {
-      toValue: progress, duration: 350, useNativeDriver: false,
-    }).start();
-  }, [progress]);
-
-  const barColor = progressAnim.interpolate({
-    inputRange: [0, 0.5, 1],
-    outputRange: [COLORS.danger, COLORS.accent, COLORS.primary],
-  });
-
-  // Piece counter urgency color
-  const isLow = piecesRemaining <= 5;
-  const isVeryLow = piecesRemaining <= 2;
-
   return (
-    <View style={sbStyles.container}>
-      <View style={sbStyles.row}>
-        {/* Left: level + target */}
-        <View>
-          <Text style={sbStyles.levelLabel}>LEVEL {level.id}</Text>
-          <Text style={sbStyles.targetLabel}>
-            {score.toLocaleString()}
-            <Text style={sbStyles.targetOf}> / {level.targetScore.toLocaleString()}</Text>
-          </Text>
-        </View>
+    <View style={goS.overlay}>
+      <View style={goS.modal}>
 
-        {/* Right: piece counter */}
-        <View style={[
-          sbStyles.counter,
-          isLow && sbStyles.counterLow,
-          isVeryLow && sbStyles.counterVeryLow,
-        ]}>
-          <Text style={[sbStyles.counterNum, isLow && { color: COLORS.accent }, isVeryLow && { color: COLORS.danger }]}>
-            {piecesRemaining}
-          </Text>
-          <Text style={sbStyles.counterLabel}>left</Text>
-        </View>
-      </View>
-
-      {/* Progress bar — no overflow children, stars removed for clarity */}
-      <View style={sbStyles.track}>
-        <Animated.View style={[sbStyles.fill, {
-          width: progressAnim.interpolate({ inputRange: [0, 1], outputRange: ["0%", "100%"] }),
-          backgroundColor: barColor,
-        }]} />
-        {/* 1-star tick at 100% — shown as a small white line */}
-        <View style={sbStyles.tick} />
-      </View>
-    </View>
-  );
-}
-
-const sbStyles = StyleSheet.create({
-  container: { width: "100%", gap: 6, marginBottom: 10 },
-  row: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  levelLabel: { color: COLORS.primary, fontSize: 12, fontWeight: "bold", letterSpacing: 2 },
-  targetLabel: { color: COLORS.text, fontSize: 16, fontWeight: "bold", marginTop: 1 },
-  targetOf: { color: COLORS.textDim, fontSize: 12, fontWeight: "normal" },
-  counter: {
-    backgroundColor: "rgba(255,255,255,0.08)",
-    borderRadius: 10, paddingHorizontal: 14, paddingVertical: 5,
-    alignItems: "center", borderWidth: 1, borderColor: "rgba(255,255,255,0.1)",
-    minWidth: 64,
-  },
-  counterLow: { borderColor: COLORS.accent, backgroundColor: "rgba(255,230,109,0.08)" },
-  counterVeryLow: { borderColor: COLORS.danger, backgroundColor: "rgba(255,107,107,0.1)" },
-  counterNum: { color: COLORS.text, fontSize: 20, fontWeight: "bold", lineHeight: 22 },
-  counterLabel: { color: COLORS.textDim, fontSize: 9, letterSpacing: 1 },
-  track: {
-    height: 10, backgroundColor: "rgba(255,255,255,0.08)",
-    borderRadius: 5, overflow: "hidden",
-  },
-  fill: { height: "100%", borderRadius: 5 },
-  tick: {
-    position: "absolute", right: 0, top: 0, bottom: 0,
-    width: 2, backgroundColor: "rgba(255,255,255,0.3)",
-  },
-});
-
-// ─── Results Screen ───────────────────────────────────────────────────────────
-
-function ResultsScreen({ phase, score, level, onReplay, onNext, onHome, onWatchAd }: {
-  phase: GamePhase; score: number; level: LevelConfig;
-  onReplay: () => void; onNext: () => void;
-  onHome: () => void; onWatchAd: () => void;
-}) {
-  const stars = getStars(score, level);
-  const isWon = phase === "won";
-  const gap = level.targetScore - score;
-  const pct = Math.min(100, Math.round((score / level.targetScore) * 100));
-
-  return (
-    <View style={rsStyles.overlay}>
-      <View style={rsStyles.modal}>
-        <Text style={rsStyles.icon}>{isWon ? "🎉" : "😞"}</Text>
-        <Text style={rsStyles.title}>
-          {isWon ? "Level Complete!" : phase === "stuck" ? "No Moves Left!" : "So Close!"}
-        </Text>
-
-        {/* Stars */}
-        {isWon && (
-          <View style={rsStyles.starsRow}>
-            {[1, 2, 3].map((s) => (
-              <Text key={s} style={[rsStyles.star, s > stars && rsStyles.starDim]}>⭐</Text>
-            ))}
-          </View>
-        )}
-
-        {/* Score box */}
-        <View style={rsStyles.scoreBox}>
-          <Text style={rsStyles.scoreLabel}>SCORE</Text>
-          <Text style={[rsStyles.scoreNum, { color: isWon ? COLORS.primary : COLORS.danger }]}>
-            {score.toLocaleString()}
-          </Text>
-          {!isWon && (
-            <Text style={rsStyles.gapText}>
-              {pct}% of target · {gap.toLocaleString()} pts short
-            </Text>
-          )}
-        </View>
-
-        {/* Buttons */}
-        {isWon ? (
+        {isNewRecord ? (
           <>
-            <TouchableOpacity style={rsStyles.btnPrimary} onPress={onNext}>
-              <Text style={rsStyles.btnPrimaryText}>Next Level →</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={rsStyles.btnOutline} onPress={onReplay}>
-              <Text style={rsStyles.btnOutlineText}>Play Again</Text>
-            </TouchableOpacity>
+            <Text style={goS.icon}>🏆</Text>
+            <Text style={goS.recordBadge}>NEW RECORD!</Text>
+            <Text style={goS.title}>Amazing run!</Text>
           </>
         ) : (
           <>
-            <TouchableOpacity style={rsStyles.btnAd} onPress={onWatchAd}>
-              <Text style={rsStyles.btnAdText}>📺  Watch Ad for +3 Pieces</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={rsStyles.btnPrimary} onPress={onReplay}>
-              <Text style={rsStyles.btnPrimaryText}>Try Again</Text>
-            </TouchableOpacity>
+            <Text style={goS.icon}>💥</Text>
+            <Text style={goS.title}>Game Over</Text>
+            <Text style={goS.subtitle}>No moves left</Text>
           </>
         )}
 
-        <TouchableOpacity onPress={onHome} style={{ marginTop: 4 }}>
-          <Text style={rsStyles.homeLink}>← Home</Text>
+        {/* Score */}
+        <View style={[goS.scoreBox, isNewRecord && goS.scoreBoxRecord]}>
+          <Text style={goS.scoreLabel}>SCORE</Text>
+          <Text style={[goS.scoreNum, isNewRecord && goS.scoreNumRecord]}>
+            {score.toLocaleString()}
+          </Text>
+        </View>
+
+        {/* Personal best (if not a new record) */}
+        {!isNewRecord && best > 0 && (
+          <View style={goS.bestRow}>
+            <Text style={goS.bestLabel}>Best</Text>
+            <Text style={goS.bestNum}>{best.toLocaleString()}</Text>
+            <Text style={goS.bestDiff}>
+              {score >= best ? "" : `  –${(best - score).toLocaleString()} from record`}
+            </Text>
+          </View>
+        )}
+
+        {/* Stats */}
+        <View style={goS.statsRow}>
+          <View style={goS.stat}>
+            <Text style={goS.statNum}>{piecesPlaced}</Text>
+            <Text style={goS.statLabel}>pieces</Text>
+          </View>
+          <View style={goS.stat}>
+            <Text style={goS.statNum}>{linesCleared}</Text>
+            <Text style={goS.statLabel}>lines</Text>
+          </View>
+          <View style={goS.stat}>
+            <Text style={[goS.statNum, bestCombo > 2 && { color: COLORS.accent }]}>
+              ×{bestCombo}
+            </Text>
+            <Text style={goS.statLabel}>combo</Text>
+          </View>
+        </View>
+
+        <TouchableOpacity style={goS.btnPrimary} onPress={onReplay}>
+          <Text style={goS.btnPrimaryText}>▶  Play Again</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={onHome} style={{ marginTop: 8 }}>
+          <Text style={goS.homeLink}>← Home</Text>
         </TouchableOpacity>
       </View>
     </View>
   );
 }
 
-const rsStyles = StyleSheet.create({
+const goS = StyleSheet.create({
   overlay: {
     ...StyleSheet.absoluteFill,
     backgroundColor: "rgba(0,0,0,0.82)",
@@ -314,77 +174,111 @@ const rsStyles = StyleSheet.create({
   modal: {
     backgroundColor: "#1B2A4A", borderRadius: 28,
     paddingHorizontal: 32, paddingVertical: 36,
-    alignItems: "center", gap: 12, width: "88%",
+    alignItems: "center", gap: 10, width: "88%",
     borderWidth: 1, borderColor: "rgba(255,255,255,0.07)",
-    shadowColor: "#000", shadowOpacity: 0.6, shadowRadius: 24,
-    shadowOffset: { width: 0, height: 12 },
   },
   icon: { fontSize: 48 },
-  title: { color: COLORS.text, fontSize: 24, fontWeight: "bold", textAlign: "center" },
-  starsRow: { flexDirection: "row", gap: 8 },
-  star: { fontSize: 30 },
-  starDim: { opacity: 0.2 },
+  recordBadge: {
+    backgroundColor: COLORS.accent, color: COLORS.background,
+    fontWeight: "bold", fontSize: 13, letterSpacing: 2,
+    paddingHorizontal: 14, paddingVertical: 4, borderRadius: 20,
+    marginTop: -4,
+  },
+  title: { color: COLORS.text, fontSize: 24, fontWeight: "bold" },
+  subtitle: { color: COLORS.textDim, fontSize: 13, marginTop: -4 },
   scoreBox: {
     alignItems: "center", backgroundColor: "rgba(255,255,255,0.05)",
-    borderRadius: 14, paddingHorizontal: 28, paddingVertical: 12,
-    width: "100%", gap: 2,
+    borderRadius: 14, paddingHorizontal: 40, paddingVertical: 12,
+    width: "100%",
+  },
+  scoreBoxRecord: {
+    backgroundColor: "rgba(255,230,109,0.1)",
+    borderWidth: 1.5, borderColor: "rgba(255,230,109,0.4)",
   },
   scoreLabel: { color: COLORS.textDim, fontSize: 11, letterSpacing: 3 },
-  scoreNum: { fontSize: 42, fontWeight: "bold" },
-  gapText: { color: COLORS.textDim, fontSize: 12, marginTop: 4, textAlign: "center" },
+  scoreNum: { color: COLORS.primary, fontSize: 48, fontWeight: "bold" },
+  scoreNumRecord: { color: COLORS.accent },
+  bestRow: {
+    flexDirection: "row", alignItems: "baseline", gap: 6,
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderRadius: 10, paddingHorizontal: 16, paddingVertical: 8,
+    width: "100%",
+  },
+  bestLabel: { color: COLORS.textDim, fontSize: 12 },
+  bestNum: { color: COLORS.text, fontSize: 18, fontWeight: "bold" },
+  bestDiff: { color: COLORS.danger, fontSize: 12, flex: 1, textAlign: "right" },
+  statsRow: { flexDirection: "row", gap: 24 },
+  stat: { alignItems: "center" },
+  statNum: { color: COLORS.text, fontSize: 20, fontWeight: "bold" },
+  statLabel: { color: COLORS.textDim, fontSize: 10 },
   btnPrimary: {
     backgroundColor: COLORS.primary, borderRadius: 14,
-    paddingHorizontal: 32, paddingVertical: 13,
-    width: "100%", alignItems: "center",
+    paddingHorizontal: 40, paddingVertical: 14,
+    width: "100%", alignItems: "center", marginTop: 4,
   },
   btnPrimaryText: { color: COLORS.background, fontSize: 16, fontWeight: "bold" },
-  btnOutline: {
-    borderRadius: 14, paddingHorizontal: 32, paddingVertical: 12,
-    width: "100%", alignItems: "center",
-    borderWidth: 1.5, borderColor: COLORS.primary,
-  },
-  btnOutlineText: { color: COLORS.primary, fontSize: 15, fontWeight: "bold" },
-  btnAd: {
-    backgroundColor: COLORS.accent, borderRadius: 14,
-    paddingHorizontal: 24, paddingVertical: 13,
-    width: "100%", alignItems: "center",
-  },
-  btnAdText: { color: COLORS.background, fontSize: 14, fontWeight: "bold" },
-  homeLink: { color: COLORS.textDim, fontSize: 13, marginTop: 2 },
+  homeLink: { color: COLORS.textDim, fontSize: 14 },
 });
 
-// ─── Game Screen ──────────────────────────────────────────────────────────────
+// ─── Classic Game Screen ──────────────────────────────────────────────────────
 
 export default function GameScreen() {
-  const level = DEFAULT_LEVEL;
+  const haptics = useHaptics();
+  const sound = useSound();
+  const hapticsRef = useRef(haptics); hapticsRef.current = haptics;
+  const soundRef = useRef(sound); soundRef.current = sound;
 
   const [grid, setGrid] = useState<Grid>(() => createGrid());
-  const [tray, setTray] = useState<Tray>(() => [randomPiece(), randomPiece(), randomPiece()]);
+  const [tray, setTray] = useState<Tray>(() => drawWeightedTray([], createGrid()) as Tray);
   const [selected, setSelected] = useState(0);
   const [score, setScore] = useState(0);
   const [combo, setCombo] = useState(0);
-  const [piecesRemaining, setPiecesRemaining] = useState(level.pieceCount);
-  const [phase, setPhase] = useState<GamePhase>("playing");
+  const [bestCombo, setBestCombo] = useState(0);
+  const [linesTotal, setLinesTotal] = useState(0);
+  const [piecesPlaced, setPiecesPlaced] = useState(0);
+  const [gameOver, setGameOver] = useState(false);
+
+  // Personal best
+  const [personalBest, setPersonalBest] = useState(0);
+  const [isNewRecord, setIsNewRecord] = useState(false);
+
+  // Ghost
   const [ghost, setGhost] = useState<{ row: number; col: number } | null>(null);
   const [ghostValid, setGhostValid] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+
+  // Row/col clear flash animation
+  const [flashRows, setFlashRows] = useState<Set<number>>(new Set());
+  const [flashCols, setFlashCols] = useState<Set<number>>(new Set());
+
+  // Recent indices for weighted piece generation
+  const [recentIndices, setRecentIndices] = useState<number[]>([]);
 
   const gridOrigin = useRef<{ x: number; y: number } | null>(null);
   const containerOrigin = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const dragPosition = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
 
-  // Refs for PanResponder closures
   const gridRef = useRef(grid); gridRef.current = grid;
   const trayRef = useRef(tray); trayRef.current = tray;
-  const selectedRef = useRef(selected); selectedRef.current = selected;
+  const selRef = useRef(selected); selRef.current = selected;
   const scoreRef = useRef(score); scoreRef.current = score;
   const comboRef = useRef(combo); comboRef.current = combo;
-  const piecesRef = useRef(piecesRemaining); piecesRef.current = piecesRemaining;
-  const phaseRef = useRef(phase); phaseRef.current = phase;
+  const bestComboRef = useRef(bestCombo); bestComboRef.current = bestCombo;
+  const gameOverRef = useRef(gameOver); gameOverRef.current = gameOver;
+  const recentRef = useRef(recentIndices); recentRef.current = recentIndices;
+  const personalBestRef = useRef(personalBest); personalBestRef.current = personalBest;
 
   const activePiece = tray[selected];
 
-  // Ghost + would-clear sets
+  // Load personal best on mount
+  useEffect(() => {
+    loadClassicBest().then(best => {
+      setPersonalBest(best);
+      personalBestRef.current = best;
+    });
+  }, []);
+
+  // Ghost cells
   const ghostCells = new Set<string>();
   const wouldClearRows = new Set<number>();
   const wouldClearCols = new Set<number>();
@@ -393,17 +287,19 @@ export default function GameScreen() {
       for (let c = 0; c < activePiece.shape[r].length; c++)
         if (activePiece.shape[r][c]) ghostCells.add(`${ghost.row + r},${ghost.col + c}`);
     const sim = placePiece(grid, activePiece, ghost.row, ghost.col);
-    for (let r = 0; r < 8; r++) if (sim[r].every(c => c !== null)) wouldClearRows.add(r);
-    for (let c = 0; c < 8; c++) if (sim.every(r => r[c] !== null)) wouldClearCols.add(c);
+    for (let r = 0; r < 8; r++)
+      if (sim[r].every(c => c !== null)) wouldClearRows.add(r);
+    for (let c = 0; c < 8; c++)
+      if (sim.every(r => r[c] !== null)) wouldClearCols.add(c);
   }
 
-  // ─── Drop ─────────────────────────────────────────────────────────────────────
+  // ─── Drop ─────────────────────────────────────────────────────────────────
 
-  const dropAt = useCallback((row: number, col: number, pieceOverride?: Piece, trayIndex?: number) => {
-    if (phaseRef.current !== "playing") return;
+  const dropAt = useCallback((row: number, col: number, pieceOverride?: Piece, trayIdx?: number) => {
+    if (gameOverRef.current) return;
     const curGrid = gridRef.current;
     const curTray = trayRef.current;
-    const curSel = trayIndex ?? selectedRef.current;
+    const curSel = trayIdx ?? selRef.current;
     const piece = pieceOverride ?? curTray[curSel];
     if (!piece || !canPlace(curGrid, piece, row, col)) return;
 
@@ -414,7 +310,10 @@ export default function GameScreen() {
     const newTray = [...curTray] as Tray;
     newTray[curSel] = null;
     const allUsed = newTray.every(p => p === null);
-    const finalTray: Tray = allUsed ? [randomPiece(), randomPiece(), randomPiece()] : newTray;
+    const newRecent = [...recentRef.current, getPieceIdx(piece)].slice(-6);
+    const finalTray: Tray = allUsed
+      ? drawWeightedTray(newRecent, cleared) as Tray
+      : newTray;
 
     let nextSel = allUsed ? 0 : curSel;
     if (!allUsed) {
@@ -424,23 +323,58 @@ export default function GameScreen() {
       }
     }
 
-    const newPieces = piecesRef.current - 1;
-    let newPhase: GamePhase = "playing";
-    if (newPieces <= 0) newPhase = result.newScore >= level.targetScore ? "won" : "failed";
-    else if (!hasAnyValidMove(cleared, finalTray)) newPhase = "stuck";
+    const isOver = !hasAnyValidMove(cleared, finalTray);
+    const newBestCombo = Math.max(bestComboRef.current, result.newCombo);
 
-    setGrid(cleared);
-    setTray(finalTray);
-    setSelected(nextSel);
-    setScore(result.newScore);
-    setCombo(result.newCombo);
-    setPiecesRemaining(newPieces);
-    setPhase(newPhase);
-    setGhost(null);
-    setGhostValid(false);
-  }, [level.targetScore]);
+    // Check personal best
+    const isRecord = result.newScore > personalBestRef.current;
+    if (isOver && isRecord) {
+      saveClassicBest(result.newScore);
+      setIsNewRecord(true);
+      setPersonalBest(result.newScore);
+    } else if (isOver) {
+      saveClassicBest(result.newScore);
+    }
 
-  // ─── Pan responders ───────────────────────────────────────────────────────────
+    // Flash animation for cleared lines
+    if (linesCleared > 0) {
+      const flashR = new Set<number>(), flashC = new Set<number>();
+      for (let r = 0; r < 8; r++)
+        if (placed[r].every(c => c !== null)) flashR.add(r);
+      for (let c = 0; c < 8; c++)
+        if (placed.every(r => r[c] !== null)) flashC.add(c);
+      setFlashRows(flashR); setFlashCols(flashC);
+      setTimeout(() => { setFlashRows(new Set()); setFlashCols(new Set()); }, 220);
+    }
+
+    // Haptics + sound
+    if (linesCleared > 0) {
+      hapticsRef.current.lineCleared();
+      soundRef.current.playClear();
+      if (result.newCombo > 1) {
+        hapticsRef.current.comboAchieved();
+        soundRef.current.playCombo();
+      }
+    } else {
+      hapticsRef.current.piecePlaced();
+      soundRef.current.playPlace();
+    }
+    if (isOver) {
+      hapticsRef.current.levelFailed();
+      soundRef.current.playFail();
+    }
+
+    setGrid(cleared); setTray(finalTray); setSelected(nextSel);
+    setScore(result.newScore); setCombo(result.newCombo);
+    setBestCombo(newBestCombo);
+    setLinesTotal(l => l + linesCleared);
+    setPiecesPlaced(p => p + 1);
+    setRecentIndices(newRecent);
+    setGhost(null); setGhostValid(false);
+    if (isOver) setGameOver(true);
+  }, []);
+
+  // ─── Pan responders ────────────────────────────────────────────────────────
 
   const panResponders = useRef([0, 1, 2].map(idx =>
     PanResponder.create({
@@ -448,73 +382,71 @@ export default function GameScreen() {
       onStartShouldSetPanResponderCapture: () => true,
       onMoveShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponderCapture: () => true,
-
       onPanResponderGrant: (e) => {
-        if (phaseRef.current !== "playing") return;
-        setSelected(idx);
-        setIsDragging(true);
+        if (gameOverRef.current) return;
+        setSelected(idx); setIsDragging(true);
+        hapticsRef.current.piecePicked();
         dragPosition.setValue({
           x: e.nativeEvent.pageX - containerOrigin.current.x,
-          y: e.nativeEvent.pageY - containerOrigin.current.y - LIFT_OFFSET,
+          y: e.nativeEvent.pageY - containerOrigin.current.y - LIFT,
         });
       },
-
       onPanResponderMove: (e) => {
-        if (phaseRef.current !== "playing") return;
+        if (gameOverRef.current) return;
         const piece = trayRef.current[idx];
         if (!piece) return;
-        const ax = e.nativeEvent.pageX;
-        const ay = e.nativeEvent.pageY;
         dragPosition.setValue({
-          x: ax - containerOrigin.current.x,
-          y: ay - containerOrigin.current.y - LIFT_OFFSET,
+          x: e.nativeEvent.pageX - containerOrigin.current.x,
+          y: e.nativeEvent.pageY - containerOrigin.current.y - LIFT,
         });
         if (!gridOrigin.current) return;
-        const { row, col } = fingerToGridCell(ax, ay - LIFT_OFFSET, gridOrigin.current, piece);
-        const clamped = clampToGrid(row, col, piece);
-        setGhost(clamped);
-        setGhostValid(canPlace(gridRef.current, piece, clamped.row, clamped.col));
+        const { row, col } = fingerToCell(e.nativeEvent.pageX, e.nativeEvent.pageY - LIFT, gridOrigin.current, piece);
+        const c = clamp(row, col, piece);
+        setGhost(c); setGhostValid(canPlace(gridRef.current, piece, c.row, c.col));
       },
-
       onPanResponderRelease: (e) => {
         setIsDragging(false); setGhost(null); setGhostValid(false);
-        if (phaseRef.current !== "playing") return;
+        if (gameOverRef.current) return;
         const piece = trayRef.current[idx];
         if (!piece || !gridOrigin.current) return;
-        const { row, col } = fingerToGridCell(
-          e.nativeEvent.pageX, e.nativeEvent.pageY - LIFT_OFFSET, gridOrigin.current, piece
-        );
-        dropAt(clampToGrid(row, col, piece).row, clampToGrid(row, col, piece).col, piece, idx);
+        const { row, col } = fingerToCell(e.nativeEvent.pageX, e.nativeEvent.pageY - LIFT, gridOrigin.current, piece);
+        const c = clamp(row, col, piece);
+        dropAt(c.row, c.col, piece, idx);
       },
-
       onPanResponderTerminate: () => { setIsDragging(false); setGhost(null); setGhostValid(false); },
     })
   )).current;
 
-  // ─── Tap to place ─────────────────────────────────────────────────────────────
-
   function handleCellTap(row: number, col: number) {
-    if (!activePiece || phase !== "playing" || isDragging) return;
-    const c = clampToGrid(
-      row - Math.floor(activePiece.shape.length / 2),
-      col - Math.floor(activePiece.shape[0].length / 2),
-      activePiece
-    );
+    if (!activePiece || gameOver || isDragging) return;
+    const c = clamp(row - Math.floor(activePiece.shape.length / 2), col - Math.floor(activePiece.shape[0].length / 2), activePiece);
     dropAt(c.row, c.col);
   }
 
-  // ─── Restart ──────────────────────────────────────────────────────────────────
-
   function restart() {
-    setGrid(createGrid()); setTray([randomPiece(), randomPiece(), randomPiece()]);
-    setSelected(0); setScore(0); setCombo(0);
-    setPiecesRemaining(level.pieceCount); setPhase("playing");
+    const g = createGrid();
+    setGrid(g); setTray(drawWeightedTray([], g) as Tray);
+    setSelected(0); setScore(0); setCombo(0); setBestCombo(0);
+    setLinesTotal(0); setPiecesPlaced(0); setGameOver(false);
+    setIsNewRecord(false); setRecentIndices([]);
     setGhost(null); setGhostValid(false); setIsDragging(false);
+    setFlashRows(new Set()); setFlashCols(new Set());
   }
 
-  function addBonusPieces() { setPiecesRemaining(p => p + 3); setPhase("playing"); }
+  // ─── Back with confirmation ───────────────────────────────────────────────────
+  function handleBack() {
+    if (gameOver || piecesPlaced === 0) { router.back(); return; }
+    Alert.alert(
+      "Leave game?",
+      "Your current run will be lost.",
+      [
+        { text: "Keep Playing", style: "cancel" },
+        { text: "Leave", style: "destructive", onPress: () => router.back() },
+      ]
+    );
+  }
 
-  // ─── Render ───────────────────────────────────────────────────────────────────
+  // ─── Render ────────────────────────────────────────────────────────────────
 
   return (
     <View
@@ -525,18 +457,33 @@ export default function GameScreen() {
     >
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
+        <TouchableOpacity onPress={handleBack}>
           <Text style={styles.back}>← Back</Text>
         </TouchableOpacity>
-        {combo > 1 && (
-          <View style={styles.comboBadge}>
-            <Text style={styles.comboText}>🔥 ×{combo}</Text>
+
+        <View style={styles.headerCenter}>
+          <Text style={styles.modeLabel}>∞ CLASSIC</Text>
+          {combo > 1 && <Text style={styles.comboText}>🔥 ×{combo}</Text>}
+        </View>
+
+        {/* Personal best */}
+        <View style={styles.bestBox}>
+          <Text style={styles.bestBoxLabel}>BEST</Text>
+          <Text style={styles.bestBoxNum}>
+            {Math.max(personalBest, score).toLocaleString()}
+          </Text>
+        </View>
+      </View>
+
+      {/* Score */}
+      <View style={styles.scoreRow}>
+        <AnimatedScore value={score} style={styles.score} duration={400} />
+        {score > 0 && score > personalBest && (
+          <View style={styles.newRecordBadge}>
+            <Text style={styles.newRecordText}>🏆 NEW RECORD</Text>
           </View>
         )}
       </View>
-
-      {/* Score bar */}
-      <ScoreBar score={score} level={level} piecesRemaining={piecesRemaining} />
 
       {/* Grid */}
       <View
@@ -550,18 +497,25 @@ export default function GameScreen() {
             {row.map((cell, c) => {
               const isGhost = ghostCells.has(`${r},${c}`);
               const willClear = wouldClearRows.has(r) || wouldClearCols.has(c);
+              const isFlashing = flashRows.has(r) || flashCols.has(c);
               const color = cell !== null ? COLORS.pieces[cell] : null;
               const gc = activePiece ? COLORS.pieces[activePiece.color] : null;
               return (
-                <TouchableOpacity
-                  key={c} activeOpacity={0.8}
+                <TouchableOpacity key={c} activeOpacity={0.8}
                   onPress={() => handleCellTap(r, c)}
                   style={[
                     styles.cell,
-                    cell !== null && { backgroundColor: color!.fill, shadowColor: color!.fill, shadowOpacity: 0.4, shadowRadius: 3, shadowOffset: { width: 0, height: 2 } },
-                    isGhost && ghostValid && { backgroundColor: gc!.fill, opacity: 0.55, borderWidth: 2, borderColor: gc!.fill },
-                    isGhost && !ghostValid && { backgroundColor: COLORS.danger, opacity: 0.4 },
-                    !isGhost && willClear && cell === null && { backgroundColor: COLORS.accent, opacity: 0.2 },
+                    cell !== null && {
+                      backgroundColor: color!.fill,
+                      shadowColor: color!.fill,
+                      shadowOpacity: 0.45, shadowRadius: 3,
+                      shadowOffset: { width: 0, height: 2 },
+                    },
+                    isFlashing && cell !== null && { backgroundColor: "#FFFFFF", opacity: 0.9 },
+                    isFlashing && cell === null && { backgroundColor: COLORS.accent, opacity: 0.6 },
+                    !isFlashing && isGhost && ghostValid && { backgroundColor: gc!.fill, opacity: 0.5, borderWidth: 2, borderColor: gc!.fill },
+                    !isFlashing && isGhost && !ghostValid && { backgroundColor: COLORS.danger, opacity: 0.38 },
+                    !isGhost && !isFlashing && willClear && cell === null && { backgroundColor: COLORS.accent, opacity: 0.18 },
                   ]}
                 />
               );
@@ -570,7 +524,6 @@ export default function GameScreen() {
         ))}
       </View>
 
-      {/* Hint */}
       <Text style={styles.hint}>
         {isDragging ? "Release to place" : "Drag a piece · or select then tap grid"}
       </Text>
@@ -578,7 +531,13 @@ export default function GameScreen() {
       {/* Tray */}
       <View style={styles.tray}>
         {tray.map((piece, i) => !piece
-          ? <View key={i} style={styles.trayEmpty} />
+          ? (
+            <View key={i} style={styles.trayEmpty}>
+              <View style={styles.trayEmptyDot} />
+              <View style={styles.trayEmptyDot} />
+              <View style={styles.trayEmptyDot} />
+            </View>
+          )
           : (
             <View key={i}
               style={[styles.traySlot, selected === i && styles.traySlotSelected]}
@@ -590,17 +549,18 @@ export default function GameScreen() {
         )}
       </View>
 
-      {/* Drag shadow */}
       {isDragging && activePiece && <DragShadow piece={activePiece} position={dragPosition} />}
 
-      {/* Results */}
-      {phase !== "playing" && (
-        <ResultsScreen
-          phase={phase} score={score} level={level}
+      {gameOver && (
+        <GameOverScreen
+          score={score}
+          best={personalBest}
+          isNewRecord={isNewRecord}
+          piecesPlaced={piecesPlaced}
+          linesCleared={linesTotal}
+          bestCombo={bestCombo}
           onReplay={restart}
-          onNext={restart} // will navigate to next level once campaign is wired
           onHome={() => router.back()}
-          onWatchAd={addBonusPieces}
         />
       )}
     </View>
@@ -611,41 +571,43 @@ export default function GameScreen() {
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-    paddingTop: 52,
-    paddingHorizontal: 16,
-    alignItems: "center",
+    flex: 1, backgroundColor: COLORS.background,
+    paddingTop: 52, paddingHorizontal: 16, alignItems: "center",
   },
   header: {
-    flexDirection: "row",
-    alignItems: "center",
-    width: "100%",
-    height: HEADER_H,
-    marginBottom: 4,
-    gap: 12,
+    flexDirection: "row", alignItems: "center",
+    width: "100%", height: 44, marginBottom: 12, gap: 10,
   },
   back: { color: COLORS.textDim, fontSize: 16 },
-  comboBadge: {
-    backgroundColor: "rgba(255,230,109,0.12)",
-    borderRadius: 8, paddingHorizontal: 10, paddingVertical: 3,
-    borderWidth: 1, borderColor: COLORS.accent,
+  headerCenter: { flex: 1, flexDirection: "row", alignItems: "center", gap: 10 },
+  modeLabel: {
+    color: COLORS.textDim, fontSize: 12, fontWeight: "bold", letterSpacing: 2,
   },
   comboText: { color: COLORS.accent, fontSize: 13, fontWeight: "bold" },
+  bestBox: { alignItems: "flex-end" },
+  bestBoxLabel: { color: COLORS.textDim, fontSize: 10, letterSpacing: 2 },
+  bestBoxNum: { color: COLORS.accent, fontSize: 18, fontWeight: "bold" },
+  scoreRow: {
+    flexDirection: "row", alignItems: "center",
+    gap: 10, marginBottom: 10, width: "100%",
+  },
+  score: { color: COLORS.text, fontSize: 32, fontWeight: "bold" },
+  newRecordBadge: {
+    backgroundColor: "rgba(255,230,109,0.15)",
+    borderRadius: 10, paddingHorizontal: 10, paddingVertical: 4,
+    borderWidth: 1, borderColor: "rgba(255,230,109,0.4)",
+  },
+  newRecordText: { color: COLORS.accent, fontSize: 11, fontWeight: "bold" },
   gridContainer: {
     backgroundColor: "rgba(255,255,255,0.05)",
     borderRadius: 14, padding: 8, gap: GAP,
   },
   row: { flexDirection: "row", gap: GAP },
   cell: {
-    width: CELL_SIZE, height: CELL_SIZE,
-    borderRadius: CELL_RADIUS,
+    width: CELL_SIZE, height: CELL_SIZE, borderRadius: CELL_R,
     backgroundColor: COLORS.cellEmpty,
   },
-  hint: {
-    color: COLORS.textDim, fontSize: 11,
-    marginTop: 8, marginBottom: 4,
-  },
+  hint: { color: COLORS.textDim, fontSize: 11, marginTop: 8, marginBottom: 4 },
   tray: {
     flexDirection: "row", gap: 10, marginTop: 8,
     backgroundColor: "rgba(255,255,255,0.05)",
@@ -659,12 +621,17 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.04)",
   },
   traySlotSelected: {
-    borderColor: COLORS.primary,
-    backgroundColor: "rgba(78,205,196,0.1)",
+    borderColor: COLORS.primary, backgroundColor: "rgba(78,205,196,0.1)",
     transform: [{ scale: 1.05 }],
   },
   trayEmpty: {
     minWidth: 72, minHeight: 56, borderRadius: 12,
-    borderWidth: 2, borderColor: "rgba(255,255,255,0.06)",
+    borderWidth: 2, borderColor: "rgba(255,255,255,0.08)",
+    alignItems: "center", justifyContent: "center",
+    flexDirection: "row", gap: 5,
+  },
+  trayEmptyDot: {
+    width: 5, height: 5, borderRadius: 3,
+    backgroundColor: "rgba(255,255,255,0.15)",
   },
 });

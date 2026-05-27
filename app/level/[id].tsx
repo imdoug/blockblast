@@ -1,7 +1,7 @@
 // app/level/[id].tsx
 
 import {
-  View, Text, StyleSheet, TouchableOpacity,
+  View, Text, StyleSheet, TouchableOpacity, Alert,
   PanResponder, Animated, Dimensions,
 } from "react-native";
 import { useRef, useState, useCallback, useEffect } from "react";
@@ -14,8 +14,11 @@ import {
 import { drawWeightedTray, PIECES } from "../../src/game/pieces";
 import { calculateScore, countCells } from "../../src/game/scoring";
 import { getLevel, LevelConfig } from "../../src/game/levels";
-import { saveHighestLevel, saveLevelStars } from "../../src/store/storage";
+import { saveHighestLevel, saveLevelStars, hasSeenObstacleTip, markObstacleTipSeen } from "../../src/store/storage";
+import { AnimatedScore } from "../../src/components/AnimatedScore";
 import { Grid, Piece, Tray, ObstacleGrid, GamePhase } from "../../src/types";
+import { useHaptics } from "../../src/hooks/useHaptics";
+import { useSound } from "../../src/hooks/useSound";
 
 // ─── Sizing ───────────────────────────────────────────────────────────────────
 const SCREEN_H  = Dimensions.get("window").height;
@@ -133,9 +136,10 @@ function ScoreBar({ score, level, piecesRemaining }: {
       <View style={sbS.row}>
         <View>
           <Text style={sbS.levelLabel}>LEVEL {level.id}</Text>
-          <Text style={sbS.scoreText}>{score.toLocaleString()}
-            <Text style={sbS.targetText}> / {level.targetScore.toLocaleString()}</Text>
-          </Text>
+          <View style={{ flexDirection: "row", alignItems: "baseline", gap: 4 }}>
+            <AnimatedScore value={score} style={sbS.scoreText} duration={400} />
+            <Text style={sbS.targetText}>/ {level.targetScore.toLocaleString()}</Text>
+          </View>
         </View>
         <View style={[sbS.counter, isLow && sbS.cLow, isVeryLow && sbS.cVeryLow]}>
           <Text style={[sbS.cNum, isLow && { color: COLORS.accent }, isVeryLow && { color: COLORS.danger }]}>
@@ -181,7 +185,7 @@ function ResultsScreen({ phase, score, level, onReplay, onNext, onHome, onWatchA
 }) {
   const stars = getStars(score, level);
   const isWon = phase === "won";
-  const gap = Math.abs(level.targetScore - score); 
+  const gap = Math.abs(level.targetScore - score);
   const pct = Math.min(100, Math.round((score / level.targetScore) * 100));
   return (
     <View style={rsS.overlay}>
@@ -204,7 +208,7 @@ function ResultsScreen({ phase, score, level, onReplay, onNext, onHome, onWatchA
           {!isWon && (
             <Text style={rsS.gapText}>
               {score >= level.targetScore
-                ? "Target hit! No moves left to continue."
+                ? "Target reached — board is full!"
                 : `${pct}% of target · ${gap.toLocaleString()} pts short`}
             </Text>
           )}
@@ -281,6 +285,30 @@ export default function LevelScreen() {
   const [ghostValid, setGhostValid] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [recentIndices, setRecentIndices] = useState<number[]>([]);
+  const [piecesPlaced, setPiecesPlaced] = useState(0);
+
+  // ── Obstacle tutorial tooltip ───────────────────────────────────────────────
+  const [showObstacleTip, setShowObstacleTip] = useState(false);
+
+  useEffect(() => {
+    if (level.obstacles.length > 0) {
+      hasSeenObstacleTip().then(seen => {
+        if (!seen) setShowObstacleTip(true);
+      });
+    }
+  }, []);
+
+  function dismissObstacleTip() {
+    markObstacleTipSeen();
+    setShowObstacleTip(false);
+  }
+
+  // ── Haptics + Sound ─────────────────────────────────────────────────────────
+  const haptics = useHaptics();
+  const sound = useSound();
+  // Use refs so PanResponder closures always see the latest instances
+  const hapticsRef = useRef(haptics); hapticsRef.current = haptics;
+  const soundRef = useRef(sound); soundRef.current = sound;
 
   // ── Animation state ─────────────────────────────────────────────────────────
   // flashRows/Cols: briefly highlight cells that just cleared (200ms flash)
@@ -370,10 +398,8 @@ export default function LevelScreen() {
 
     const newPieces = piecesRef.current - 1;
     let newPhase: GamePhase = "playing";
-    if (newPieces <= 0) {
-      newPhase = result.newScore >= level.targetScore ? "won" : "failed";
-    } else if (!hasAnyValidMove(cleared, finalTray, clearedObs)) {
-      // If stuck but already hit the target → still a win
+    if (newPieces <= 0) newPhase = result.newScore >= level.targetScore ? "won" : "failed";
+    else if (!hasAnyValidMove(cleared, finalTray, clearedObs)) {
       newPhase = result.newScore >= level.targetScore ? "won" : "stuck";
     }
 
@@ -429,7 +455,27 @@ export default function LevelScreen() {
     setGrid(cleared); setObstacles(clearedObs); setTray(finalTray);
     setSelected(nextSel); setScore(result.newScore); setCombo(result.newCombo);
     setPiecesRemaining(newPieces); setPhase(newPhase);
-    setRecentIndices(newRecent); setGhost(null); setGhostValid(false);
+    setRecentIndices(newRecent); setPiecesPlaced(p => p + 1); setGhost(null); setGhostValid(false);
+
+    // ── Haptic + sound feedback ───────────────────────────────────────────
+    if (linesCleared > 0) {
+      hapticsRef.current.lineCleared();
+      soundRef.current.playClear();
+      if (result.newCombo > 1) {
+        hapticsRef.current.comboAchieved();
+        soundRef.current.playCombo();
+      }
+    } else {
+      hapticsRef.current.piecePlaced();
+      soundRef.current.playPlace();
+    }
+    if (newPhase === "won") {
+      hapticsRef.current.levelComplete();
+      soundRef.current.playWin();
+    } else if (newPhase === "failed" || newPhase === "stuck") {
+      hapticsRef.current.levelFailed();
+      soundRef.current.playFail();
+    }
   }, [level]);
 
   // ─── Pan responders ──────────────────────────────────────────────────────────
@@ -443,6 +489,7 @@ export default function LevelScreen() {
       onPanResponderGrant: (e) => {
         if (phaseRef.current !== "playing") return;
         setSelected(idx); setIsDragging(true);
+        hapticsRef.current.piecePicked();
         dragPosition.setValue({ x: e.nativeEvent.pageX - containerOrigin.current.x, y: e.nativeEvent.pageY - containerOrigin.current.y - LIFT });
       },
       onPanResponderMove: (e) => {
@@ -480,6 +527,7 @@ export default function LevelScreen() {
     setTray(drawWeightedTray([], g, o) as Tray);
     setSelected(0); setScore(0); setCombo(0);
     setPiecesRemaining(level.pieceCount); setPhase("playing");
+    setPiecesPlaced(0);
     setGhost(null); setGhostValid(false); setIsDragging(false); setRecentIndices([]);
     setFlashRows(new Set()); setFlashCols(new Set());
     setHitObstacles(new Set()); setDestroyedObstacles(new Set());
@@ -487,6 +535,22 @@ export default function LevelScreen() {
   }
 
   const obsRemaining = obstacles.flat().filter(Boolean).length;
+
+  // ── Back with confirmation ─────────────────────────────────────────────────
+  function handleBack() {
+    if (phase !== "playing" || piecesPlaced === 0) {
+      router.back();
+      return;
+    }
+    Alert.alert(
+      "Leave level?",
+      "Your current progress will be lost.",
+      [
+        { text: "Keep Playing", style: "cancel" },
+        { text: "Leave", style: "destructive", onPress: () => router.back() },
+      ]
+    );
+  }
 
   // ─── Render ───────────────────────────────────────────────────────────────────
 
@@ -496,7 +560,7 @@ export default function LevelScreen() {
       onLayout={e => e.target.measure((_x, _y, _w, _h, px, py) => { containerOrigin.current = { x: px, y: py }; })}
     >
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
+        <TouchableOpacity onPress={handleBack}>
           <Text style={styles.back}>← Levels</Text>
         </TouchableOpacity>
         {combo > 1 && (
@@ -606,7 +670,13 @@ export default function LevelScreen() {
 
       <View style={styles.tray}>
         {tray.map((piece, i) => !piece
-          ? <View key={i} style={styles.trayEmpty} />
+          ? (
+            <View key={i} style={styles.trayEmpty}>
+              <View style={styles.trayEmptyDot} />
+              <View style={styles.trayEmptyDot} />
+              <View style={styles.trayEmptyDot} />
+            </View>
+          )
           : (
             <View key={i}
               style={[styles.traySlot, selected === i && styles.traySlotSelected]}
@@ -619,6 +689,26 @@ export default function LevelScreen() {
       </View>
 
       {isDragging && activePiece && <DragShadow piece={activePiece} position={dragPosition} />}
+
+      {/* Obstacle tutorial tooltip — shows once on first level with obstacles */}
+      {showObstacleTip && (
+        <TouchableOpacity
+          style={tipS.overlay}
+          activeOpacity={1}
+          onPress={dismissObstacleTip}
+        >
+          <View style={tipS.card}>
+            <Text style={tipS.emoji}>🪵  🪨  💣</Text>
+            <Text style={tipS.title}>Obstacle Blocks!</Text>
+            <Text style={tipS.body}>
+              Fill the row or column containing a block to hit it.
+              Reduce its number to 0 to destroy it and earn big bonus points!
+            </Text>
+            <View style={tipS.divider} />
+            <Text style={tipS.dismiss}>Tap anywhere to continue</Text>
+          </View>
+        </TouchableOpacity>
+      )}
 
       {phase !== "playing" && (
         <ResultsScreen
@@ -674,5 +764,60 @@ const styles = StyleSheet.create({
   tray: { flexDirection: "row", gap: 10, marginTop: 8, backgroundColor: "rgba(255,255,255,0.05)", borderRadius: 18, padding: 12, alignItems: "center", justifyContent: "center" },
   traySlot: { padding: 10, borderRadius: 12, borderWidth: 2, borderColor: "transparent", alignItems: "center", justifyContent: "center", minWidth: 72, minHeight: 56, backgroundColor: "rgba(255,255,255,0.04)" },
   traySlotSelected: { borderColor: COLORS.primary, backgroundColor: "rgba(78,205,196,0.1)", transform: [{ scale: 1.05 }] },
-  trayEmpty: { minWidth: 72, minHeight: 56, borderRadius: 12, borderWidth: 2, borderColor: "rgba(255,255,255,0.06)" },
+  trayEmpty: {
+    minWidth: 72, minHeight: 56, borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.06)",
+    borderStyle: "dashed",
+    alignItems: "center", justifyContent: "center",
+    flexDirection: "row", gap: 4,
+  },
+  trayEmptyDot: {
+    width: 4, height: 4, borderRadius: 2,
+    backgroundColor: "rgba(255,255,255,0.1)",
+  },});
+const tipS = StyleSheet.create({
+  overlay: {
+    ...StyleSheet.absoluteFill,
+    backgroundColor: "rgba(0,0,0,0.75)",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 200,
+    padding: 24,
+  },
+  card: {
+    backgroundColor: "#1B2A4A",
+    borderRadius: 24,
+    padding: 28,
+    alignItems: "center",
+    gap: 12,
+    width: "100%",
+    borderWidth: 1,
+    borderColor: "rgba(166,124,82,0.4)",
+    shadowColor: "#000",
+    shadowOpacity: 0.5,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 10 },
+  },
+  emoji: { fontSize: 32, letterSpacing: 8 },
+  title: {
+    color: "#E8C99A",
+    fontSize: 22,
+    fontWeight: "bold",
+  },
+  body: {
+    color: "rgba(255,255,255,0.75)",
+    fontSize: 15,
+    textAlign: "center",
+    lineHeight: 22,
+  },
+  divider: {
+    width: "40%",
+    height: 1,
+    backgroundColor: "rgba(255,255,255,0.1)",
+  },
+  dismiss: {
+    color: "rgba(255,255,255,0.4)",
+    fontSize: 13,
+  },
 });
