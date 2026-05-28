@@ -575,7 +575,7 @@ export default function LevelScreen() {
 
       {/* Obstacle bonus pop */}
       {obstaclePop && (
-        <View style={styles.obstaclePopBanner}>
+        <View style={styles.obstaclePopBanner} pointerEvents="none">
           <Text style={styles.obstaclePopText}>{obstaclePop}</Text>
         </View>
       )}
@@ -733,9 +733,22 @@ const styles = StyleSheet.create({
   comboText: { color: COLORS.accent, fontSize: 13, fontWeight: "bold" },
   obsRemaining: { marginLeft: "auto" as any, color: "#A67C52", fontSize: 13, fontWeight: "bold" },
   obstaclePopBanner: {
-    backgroundColor: "rgba(140,80,20,0.92)",
-    borderRadius: 12, paddingHorizontal: 16, paddingVertical: 7,
-    marginBottom: 6, borderWidth: 1, borderColor: "rgba(200,140,60,0.5)",
+    position: "absolute",
+    top: "42%",
+    left: 32,
+    right: 32,
+    zIndex: 50,
+    backgroundColor: "rgba(100,55,10,0.96)",
+    borderRadius: 18,
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderWidth: 1,
+    borderColor: "rgba(200,140,60,0.4)",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOpacity: 0.5,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 6 },
   },
   obstaclePopText: { color: "#FFE0A0", fontSize: 14, fontWeight: "bold", textAlign: "center" },
   gridContainer: { backgroundColor: "rgba(255,255,255,0.05)", borderRadius: 14, padding: 8, gap: GAP },

@@ -1,6 +1,6 @@
 // app/rush/index.tsx
 //
-// Pressure Mode — BlockBlast's second game mode.
+// Pressure Mode — BloxBurst's second game mode.
 //
 // Core mechanic: every cell has a point multiplier that counts DOWN each turn.
 // Cells NEVER lock or disappear — the board clears exactly like classic Block Blast.

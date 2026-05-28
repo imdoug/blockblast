@@ -259,7 +259,7 @@ function ResultsOverlay({ phase, score, onHome }: {
   const isWon = phase === "won";
 
   // Generate shareable text — copy to clipboard (manual for now)
-  const shareText = `📅 BlockBlast Daily ${formatToday()}\n` +
+  const shareText = `📅 BloxBurst Daily ${formatToday()}\n` +
     `${"⭐".repeat(stars)}${"☆".repeat(3 - stars)}\n` +
     `Score: ${score.toLocaleString()}`;
 

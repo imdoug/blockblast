@@ -10,12 +10,15 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 export const DEV_UNLOCK_ALL = true; // ← FLIP TO false BEFORE PUBLISHING
 
 const KEYS = {
-  HIGHEST_LEVEL: "bb_highest_level",
-  LEVEL_STARS:   "bb_level_stars",
-  CLASSIC_BEST:  "bb_classic_best",
-  STREAK:        "bb_streak",
-  DAILY_RESULT:  "bb_daily_result",
+  HIGHEST_LEVEL:     "bb_highest_level",
+  LEVEL_STARS:       "bb_level_stars",
+  CLASSIC_BEST:      "bb_classic_best",
+  STREAK:            "bb_streak",
+  DAILY_RESULT:      "bb_daily_result",
   OBSTACLE_TIP_SEEN: "bb_obstacle_tip_seen",
+  HAPTICS_ENABLED:   "bb_haptics_enabled",
+  SOUND_ENABLED:     "bb_sound_enabled",
+  ONBOARDING_SEEN:   "bb_onboarding_seen",
 } as const;
 
 // ─── Level Progress ───────────────────────────────────────────────────────────
@@ -114,6 +117,51 @@ export async function saveDailyResult(score: number, stars: number): Promise<voi
   try {
     const today = new Date().toISOString().split("T")[0];
     await AsyncStorage.setItem(KEYS.DAILY_RESULT, JSON.stringify({ date: today, score, stars }));
+  } catch {}
+}
+
+// ─── Settings ────────────────────────────────────────────────────────────────
+// Haptics and sound preferences. Default is true (on) for both.
+// We store as "false" string only when disabled — missing key = enabled.
+
+export async function loadHapticsEnabled(): Promise<boolean> {
+  try {
+    const val = await AsyncStorage.getItem(KEYS.HAPTICS_ENABLED);
+    return val !== "false";
+  } catch { return true; }
+}
+
+export async function saveHapticsEnabled(enabled: boolean): Promise<void> {
+  try {
+    await AsyncStorage.setItem(KEYS.HAPTICS_ENABLED, enabled ? "true" : "false");
+  } catch {}
+}
+
+export async function loadSoundEnabled(): Promise<boolean> {
+  try {
+    const val = await AsyncStorage.getItem(KEYS.SOUND_ENABLED);
+    return val !== "false";
+  } catch { return true; }
+}
+
+export async function saveSoundEnabled(enabled: boolean): Promise<void> {
+  try {
+    await AsyncStorage.setItem(KEYS.SOUND_ENABLED, enabled ? "true" : "false");
+  } catch {}
+}
+
+// ─── Onboarding ──────────────────────────────────────────────────────────────
+
+export async function hasSeenOnboarding(): Promise<boolean> {
+  try {
+    const val = await AsyncStorage.getItem(KEYS.ONBOARDING_SEEN);
+    return val === "true";
+  } catch { return false; }
+}
+
+export async function markOnboardingSeen(): Promise<void> {
+  try {
+    await AsyncStorage.setItem(KEYS.ONBOARDING_SEEN, "true");
   } catch {}
 }
 

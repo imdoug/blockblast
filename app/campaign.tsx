@@ -4,7 +4,7 @@
 // Each tile shows: level number, stars earned, lock state.
 // A level is unlocked when its ID <= highestUnlockedLevel.
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import {
   View, Text, StyleSheet, TouchableOpacity,
   ScrollView, StatusBar, Dimensions,
@@ -127,6 +127,7 @@ export default function CampaignScreen() {
   const [highestLevel, setHighestLevel] = useState(1);
   const [allStars, setAllStars] = useState<Record<number, number>>({});
   const [isLoading, setIsLoading] = useState(true);
+  const scrollViewRef = useRef<ScrollView>(null);
 
   // useFocusEffect reloads data every time the screen comes into focus.
   // This is important: when the player finishes a level and comes back,
@@ -141,6 +142,13 @@ export default function CampaignScreen() {
         setHighestLevel(highest);
         setAllStars(stars);
         setIsLoading(false);
+
+        // Scroll to current level after a brief render delay
+        setTimeout(() => {
+          const currentRow = Math.floor((highest - 1) / COLS);
+          const scrollY = Math.max(0, currentRow * (TILE_SIZE + TILE_GAP) - 120);
+          scrollViewRef.current?.scrollTo({ y: scrollY, animated: true });
+        }, 350);
       }
       load();
     }, [])
@@ -194,6 +202,7 @@ export default function CampaignScreen() {
         </View>
       ) : (
         <ScrollView
+          ref={scrollViewRef}
           contentContainerStyle={styles.grid}
           showsVerticalScrollIndicator={false}
         >
