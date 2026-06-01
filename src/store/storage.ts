@@ -7,7 +7,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 // All 99 levels will be immediately accessible from the level select screen.
 // SET THIS TO FALSE BEFORE SHIPPING TO THE APP STORE.
 
-export const DEV_UNLOCK_ALL = true; // ← FLIP TO false BEFORE PUBLISHING
+export const DEV_UNLOCK_ALL = false; // ← FLIP TO false BEFORE PUBLISHING
 
 const KEYS = {
   HIGHEST_LEVEL:     "bb_highest_level",
@@ -81,15 +81,22 @@ export async function saveClassicBest(score: number): Promise<void> {
 interface StreakData { count: number; lastDate: string; }
 
 export async function updateAndLoadStreak(): Promise<number> {
+  // READ-ONLY — just returns current streak count.
+  // Streak is incremented only when the user COMPLETES the daily challenge.
+  // See incrementStreakOnDailyComplete() below.
   try {
-    const today = new Date().toISOString().split("T")[0];
     const raw = await AsyncStorage.getItem(KEYS.STREAK);
     const streak: StreakData = raw ? JSON.parse(raw) : { count: 0, lastDate: "" };
-    if (streak.lastDate === today) return streak.count;
+
+    // If user missed yesterday, streak has broken — return 0
+    const today     = new Date().toISOString().split("T")[0];
     const yesterday = new Date(Date.now() - 86_400_000).toISOString().split("T")[0];
-    const newCount = streak.lastDate === yesterday ? streak.count + 1 : 1;
-    await AsyncStorage.setItem(KEYS.STREAK, JSON.stringify({ count: newCount, lastDate: today }));
-    return newCount;
+    if (streak.lastDate !== today && streak.lastDate !== yesterday) {
+      // Streak broken — reset silently
+      await AsyncStorage.setItem(KEYS.STREAK, JSON.stringify({ count: 0, lastDate: streak.lastDate }));
+      return 0;
+    }
+    return streak.count;
   } catch { return 1; }
 }
 
@@ -163,6 +170,25 @@ export async function markOnboardingSeen(): Promise<void> {
   try {
     await AsyncStorage.setItem(KEYS.ONBOARDING_SEEN, "true");
   } catch {}
+}
+
+// ─── Daily streak — only increments on actual daily challenge completion ────────
+
+export async function incrementStreakOnDailyComplete(): Promise<number> {
+  try {
+    const today     = new Date().toISOString().split("T")[0];
+    const yesterday = new Date(Date.now() - 86_400_000).toISOString().split("T")[0];
+    const raw       = await AsyncStorage.getItem(KEYS.STREAK);
+    const streak: StreakData = raw ? JSON.parse(raw) : { count: 0, lastDate: "" };
+
+    // Already completed today — don't double-count
+    if (streak.lastDate === today) return streak.count;
+
+    // Continuing streak (played yesterday) or starting fresh
+    const newCount = streak.lastDate === yesterday ? streak.count + 1 : 1;
+    await AsyncStorage.setItem(KEYS.STREAK, JSON.stringify({ count: newCount, lastDate: today }));
+    return newCount;
+  } catch { return 0; }
 }
 
 // ─── Obstacle tutorial ───────────────────────────────────────────────────────

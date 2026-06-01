@@ -3,6 +3,7 @@
 import {
   View, Text, StyleSheet, TouchableOpacity, Alert,
   PanResponder, Animated, Dimensions,
+  GestureResponderEvent,
 } from "react-native";
 import { useRef, useState, useCallback, useEffect } from "react";
 import { router } from "expo-router";
@@ -14,7 +15,17 @@ import { drawWeightedTray, PIECES } from "../src/game/pieces";
 import { calculateScore, countCells } from "../src/game/scoring";
 import { loadClassicBest, saveClassicBest } from "../src/store/storage";
 import { useHaptics } from "../src/hooks/useHaptics";
+import { AD_UNIT_IDS } from "../src/constants/config";
+
+let BannerAd: any = null;
+let BannerAdSize: any = null;
+try {
+  const admob = require("react-native-google-mobile-ads");
+  BannerAd     = admob.BannerAd;
+  BannerAdSize = admob.BannerAdSize;
+} catch {}
 import { AnimatedScore } from "../src/components/AnimatedScore";
+import { useInterstitialAd, useRewardedAd } from "../src/hooks/useAds";
 import { useSound } from "../src/hooks/useSound";
 import { Grid, Piece, Tray } from "../src/types";
 
@@ -26,7 +37,7 @@ const AVAILABLE = Math.min(SCREEN_H * 0.52, SCREEN_W - 32);
 const CELL_SIZE = Math.max(30, Math.min(Math.floor(AVAILABLE / 8) - GAP, 46));
 const CELL_STEP = CELL_SIZE + GAP;
 const CELL_R    = Math.round(CELL_SIZE * 0.22);
-const LIFT      = 110;
+const LIFT      = 60;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -66,29 +77,7 @@ function MiniPiece({ piece }: { piece: Piece }) {
   );
 }
 
-// ─── Drag shadow ──────────────────────────────────────────────────────────────
-function DragShadow({ piece, position }: { piece: Piece; position: Animated.ValueXY }) {
-  const color = COLORS.pieces[piece.color];
-  const dc = CELL_SIZE * 1.1;
-  return (
-    <Animated.View pointerEvents="none" style={[
-      StyleSheet.absoluteFill,
-      { zIndex: 999, transform: position.getTranslateTransform() },
-    ]}>
-      {piece.shape.map((row, r) => (
-        <View key={r} style={{ flexDirection: "row" }}>
-          {row.map((cell, c) => (
-            <View key={c} style={{
-              width: dc, height: dc, margin: 2, borderRadius: CELL_R,
-              backgroundColor: cell ? color.fill : "transparent",
-              opacity: cell ? 0.88 : 0,
-            }} />
-          ))}
-        </View>
-      ))}
-    </Animated.View>
-  );
-}
+// Placement overlay handles ghost — no floating DragShadow
 
 // ─── Game Over screen ─────────────────────────────────────────────────────────
 function GameOverScreen({
@@ -97,8 +86,12 @@ function GameOverScreen({
 }: {
   score: number; best: number; isNewRecord: boolean;
   piecesPlaced: number; linesCleared: number; bestCombo: number;
-  onReplay: () => void; onHome: () => void;
+  onReplay: () => void; onHome: () => void; onWatchAd: () => void;
 }) {
+  function onWatchAd(event: GestureResponderEvent): void {
+    throw new Error("Function not implemented.");
+  }
+
   return (
     <View style={goS.overlay}>
       <View style={goS.modal}>
@@ -154,6 +147,10 @@ function GameOverScreen({
           </View>
         </View>
 
+        {/* Rewarded ad — give fresh pieces to continue */}
+        <TouchableOpacity style={goS.btnAd} onPress={onWatchAd}>
+          <Text style={goS.btnAdText}>📺  Watch Ad for 3 Fresh Pieces</Text>
+        </TouchableOpacity>
         <TouchableOpacity style={goS.btnPrimary} onPress={onReplay}>
           <Text style={goS.btnPrimaryText}>▶  Play Again</Text>
         </TouchableOpacity>
@@ -218,6 +215,12 @@ const goS = StyleSheet.create({
   },
   btnPrimaryText: { color: COLORS.background, fontSize: 16, fontWeight: "bold" },
   homeLink: { color: COLORS.textDim, fontSize: 14 },
+  btnAd: {
+    backgroundColor: COLORS.accent, borderRadius: 14,
+    paddingHorizontal: 24, paddingVertical: 13,
+    width: "100%", alignItems: "center",
+  },
+  btnAdText: { color: COLORS.background, fontSize: 14, fontWeight: "bold" },
 });
 
 // ─── Classic Game Screen ──────────────────────────────────────────────────────
@@ -227,6 +230,8 @@ export default function GameScreen() {
   const sound = useSound();
   const hapticsRef = useRef(haptics); hapticsRef.current = haptics;
   const soundRef = useRef(sound); soundRef.current = sound;
+  const { showInterstitial } = useInterstitialAd();
+  const { showRewarded } = useRewardedAd();
 
   const [grid, setGrid] = useState<Grid>(() => createGrid());
   const [tray, setTray] = useState<Tray>(() => drawWeightedTray([], createGrid()) as Tray);
@@ -250,13 +255,21 @@ export default function GameScreen() {
   // Row/col clear flash animation
   const [flashRows, setFlashRows] = useState<Set<number>>(new Set());
   const [flashCols, setFlashCols] = useState<Set<number>>(new Set());
+  const [linesJustCleared, setLinesJustCleared] = useState(false);
+  const flashColorRef = useRef<string>(COLORS.primary); // ref = synchronous, no stale state
+  const glowAnim  = useRef(new Animated.Value(0)).current;
+  const [comboFloatText,    setComboFloatText]    = useState("");
+  const [comboFloatVisible, setComboFloatVisible] = useState(false);
+  const [comboFloatRowY,    setComboFloatRowY]    = useState(100);
+  const comboFloatY       = useRef(new Animated.Value(0)).current;
+  const comboFloatOpacity = useRef(new Animated.Value(1)).current;
 
   // Recent indices for weighted piece generation
   const [recentIndices, setRecentIndices] = useState<number[]>([]);
 
   const gridOrigin = useRef<{ x: number; y: number } | null>(null);
   const containerOrigin = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
-  const dragPosition = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
+
 
   const gridRef = useRef(grid); gridRef.current = grid;
   const trayRef = useRef(tray); trayRef.current = tray;
@@ -282,15 +295,17 @@ export default function GameScreen() {
   const ghostCells = new Set<string>();
   const wouldClearRows = new Set<number>();
   const wouldClearCols = new Set<number>();
-  if (ghost && activePiece && ghostValid) {
+  if (ghost && activePiece) {
     for (let r = 0; r < activePiece.shape.length; r++)
       for (let c = 0; c < activePiece.shape[r].length; c++)
         if (activePiece.shape[r][c]) ghostCells.add(`${ghost.row + r},${ghost.col + c}`);
-    const sim = placePiece(grid, activePiece, ghost.row, ghost.col);
-    for (let r = 0; r < 8; r++)
-      if (sim[r].every(c => c !== null)) wouldClearRows.add(r);
-    for (let c = 0; c < 8; c++)
-      if (sim.every(r => r[c] !== null)) wouldClearCols.add(c);
+    if (ghostValid) {
+      const sim = placePiece(grid, activePiece, ghost.row, ghost.col);
+      for (let r = 0; r < 8; r++)
+        if (sim[r].every(c => c !== null)) wouldClearRows.add(r);
+      for (let c = 0; c < 8; c++)
+        if (sim.every(r => r[c] !== null)) wouldClearCols.add(c);
+    }
   }
 
   // ─── Drop ─────────────────────────────────────────────────────────────────
@@ -336,15 +351,43 @@ export default function GameScreen() {
       saveClassicBest(result.newScore);
     }
 
-    // Flash animation for cleared lines
+    // Flash animation + score pulse trigger
     if (linesCleared > 0) {
+      setLinesJustCleared(true);
+      setTimeout(() => setLinesJustCleared(false), 600);
       const flashR = new Set<number>(), flashC = new Set<number>();
       for (let r = 0; r < 8; r++)
         if (placed[r].every(c => c !== null)) flashR.add(r);
       for (let c = 0; c < 8; c++)
         if (placed.every(r => r[c] !== null)) flashC.add(c);
+
+      const pColor = COLORS.pieces[piece.color]?.fill ?? COLORS.primary;
+      flashColorRef.current = pColor; // sync update before re-render
       setFlashRows(flashR); setFlashCols(flashC);
-      setTimeout(() => { setFlashRows(new Set()); setFlashCols(new Set()); }, 220);
+      setTimeout(() => { setFlashRows(new Set()); setFlashCols(new Set()); }, 240);
+
+      glowAnim.stopAnimation();
+      glowAnim.setValue(0);
+      Animated.sequence([
+        Animated.timing(glowAnim, { toValue: 1, duration: 80,  useNativeDriver: false }),
+        Animated.timing(glowAnim, { toValue: 0, duration: 500, useNativeDriver: false }),
+      ]).start();
+
+      if (result.newCombo > 1 || linesCleared > 1) {
+        const firstRow = flashR.size > 0 ? Math.min(...flashR) : 3;
+        const rowY = 8 + firstRow * CELL_STEP + CELL_SIZE / 2;
+        const text = result.newCombo > 1 ? `×${result.newCombo} COMBO 🔥` : `${linesCleared} LINES ✨`;
+        setComboFloatText(text); setComboFloatRowY(rowY);
+        comboFloatY.setValue(0); comboFloatOpacity.setValue(1);
+        setComboFloatVisible(true);
+        Animated.sequence([
+          Animated.delay(300),
+          Animated.parallel([
+            Animated.timing(comboFloatY,       { toValue: -50, duration: 600, useNativeDriver: true }),
+            Animated.timing(comboFloatOpacity, { toValue: 0,   duration: 600, useNativeDriver: true }),
+          ]),
+        ]).start(() => setComboFloatVisible(false));
+      }
     }
 
     // Haptics + sound
@@ -371,7 +414,13 @@ export default function GameScreen() {
     setPiecesPlaced(p => p + 1);
     setRecentIndices(newRecent);
     setGhost(null); setGhostValid(false);
-    if (isOver) setGameOver(true);
+    if (isOver) {
+      // Show interstitial before game over screen — standard casual game pattern
+      // Small delay so the last move animates before the ad appears
+      setTimeout(() => {
+        showInterstitial(() => setGameOver(true));
+      }, 600);
+    }
   }, []);
 
   // ─── Pan responders ────────────────────────────────────────────────────────
@@ -386,19 +435,11 @@ export default function GameScreen() {
         if (gameOverRef.current) return;
         setSelected(idx); setIsDragging(true);
         hapticsRef.current.piecePicked();
-        dragPosition.setValue({
-          x: e.nativeEvent.pageX - containerOrigin.current.x,
-          y: e.nativeEvent.pageY - containerOrigin.current.y - LIFT,
-        });
       },
       onPanResponderMove: (e) => {
         if (gameOverRef.current) return;
         const piece = trayRef.current[idx];
         if (!piece) return;
-        dragPosition.setValue({
-          x: e.nativeEvent.pageX - containerOrigin.current.x,
-          y: e.nativeEvent.pageY - containerOrigin.current.y - LIFT,
-        });
         if (!gridOrigin.current) return;
         const { row, col } = fingerToCell(e.nativeEvent.pageX, e.nativeEvent.pageY - LIFT, gridOrigin.current, piece);
         const c = clamp(row, col, piece);
@@ -430,7 +471,19 @@ export default function GameScreen() {
     setLinesTotal(0); setPiecesPlaced(0); setGameOver(false);
     setIsNewRecord(false); setRecentIndices([]);
     setGhost(null); setGhostValid(false); setIsDragging(false);
-    setFlashRows(new Set()); setFlashCols(new Set());
+    setFlashRows(new Set()); setFlashCols(new Set()); setLinesJustCleared(false);
+    setComboFloatVisible(false); glowAnim.setValue(0);
+  }
+
+  // ─── Fresh pieces on Watch Ad ────────────────────────────────────────────────
+  function handleWatchAd() {
+    showRewarded(() => {
+      const freshTray = drawWeightedTray([], gridRef.current) as Tray;
+      setTray(freshTray);
+      setGameOver(false);
+      setCombo(0);
+      setIsDragging(false);
+    });
   }
 
   // ─── Back with confirmation ───────────────────────────────────────────────────
@@ -475,9 +528,14 @@ export default function GameScreen() {
         </View>
       </View>
 
-      {/* Score */}
+      {/* Score — large and centered */}
       <View style={styles.scoreRow}>
-        <AnimatedScore value={score} style={styles.score} duration={400} />
+        <AnimatedScore
+          value={score}
+          style={styles.score}
+          duration={350}
+          flash={linesJustCleared}
+        />
         {score > 0 && score > personalBest && (
           <View style={styles.newRecordBadge}>
             <Text style={styles.newRecordText}>🏆 NEW RECORD</Text>
@@ -486,6 +544,24 @@ export default function GameScreen() {
       </View>
 
       {/* Grid */}
+      <View style={styles.gridWrapper}>
+
+      <Animated.View style={[styles.gridGlow, {
+        opacity: glowAnim,
+        borderColor: flashColorRef.current,
+        shadowColor: flashColorRef.current,
+      }]} pointerEvents="none" />
+
+      {comboFloatVisible && (
+        <Animated.View style={[styles.comboFloat, {
+          top: comboFloatRowY - 20,
+          opacity: comboFloatOpacity,
+          transform: [{ translateY: comboFloatY }],
+        }]} pointerEvents="none">
+          <Text style={styles.comboFloatText}>{comboFloatText}</Text>
+        </Animated.View>
+      )}
+
       <View
         style={styles.gridContainer}
         onLayout={e => e.target.measure((_x, _y, _w, _h, px, py) => {
@@ -499,7 +575,7 @@ export default function GameScreen() {
               const willClear = wouldClearRows.has(r) || wouldClearCols.has(c);
               const isFlashing = flashRows.has(r) || flashCols.has(c);
               const color = cell !== null ? COLORS.pieces[cell] : null;
-              const gc = activePiece ? COLORS.pieces[activePiece.color] : null;
+
               return (
                 <TouchableOpacity key={c} activeOpacity={0.8}
                   onPress={() => handleCellTap(r, c)}
@@ -511,10 +587,9 @@ export default function GameScreen() {
                       shadowOpacity: 0.45, shadowRadius: 3,
                       shadowOffset: { width: 0, height: 2 },
                     },
-                    isFlashing && cell !== null && { backgroundColor: "#FFFFFF", opacity: 0.9 },
-                    isFlashing && cell === null && { backgroundColor: COLORS.accent, opacity: 0.6 },
-                    !isFlashing && isGhost && ghostValid && { backgroundColor: gc!.fill, opacity: 0.5, borderWidth: 2, borderColor: gc!.fill },
-                    !isFlashing && isGhost && !ghostValid && { backgroundColor: COLORS.danger, opacity: 0.38 },
+                    isFlashing && cell !== null && { backgroundColor: flashColorRef.current, opacity: 1 },
+                    isFlashing && cell === null && { backgroundColor: flashColorRef.current, opacity: 0.55 },
+
                     !isGhost && !isFlashing && willClear && cell === null && { backgroundColor: COLORS.accent, opacity: 0.18 },
                   ]}
                 />
@@ -522,6 +597,28 @@ export default function GameScreen() {
             })}
           </View>
         ))}
+      </View>
+
+      {/* Placement overlay */}
+      {isDragging && ghost && activePiece && (
+        <View style={styles.placementOverlay} pointerEvents="none">
+          {Array.from({ length: 8 }, (_, r) => (
+            <View key={r} style={styles.row}>
+              {Array.from({ length: 8 }, (_, c) => {
+                const isGhost = ghostCells.has(`${r},${c}`);
+                const gc      = COLORS.pieces[activePiece.color];
+                return (
+                  <View key={c} style={[
+                    styles.overlayCell,
+                    isGhost && ghostValid  && { backgroundColor: gc.fill, opacity: 0.72, borderWidth: 2, borderColor: gc.fill },
+                    isGhost && !ghostValid && { backgroundColor: gc.fill, opacity: 1, borderWidth: 2, borderColor: COLORS.danger },
+                  ]} />
+                );
+              })}
+            </View>
+          ))}
+        </View>
+      )}
       </View>
 
       <Text style={styles.hint}>
@@ -549,7 +646,20 @@ export default function GameScreen() {
         )}
       </View>
 
-      {isDragging && activePiece && <DragShadow piece={activePiece} position={dragPosition} />}
+      {/* Piece count centered below tray */}
+      <View style={styles.pieceCountRow}>
+        <Text style={styles.pieceCountText}>∞ Classic Mode</Text>
+      </View>
+
+
+
+      {BannerAd && BannerAdSize && (
+        <BannerAd
+          unitId={AD_UNIT_IDS.banner}
+          size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER}
+          requestOptions={{ requestNonPersonalizedAdsOnly: false }}
+        />
+      )}
 
       {gameOver && (
         <GameOverScreen
@@ -561,13 +671,23 @@ export default function GameScreen() {
           bestCombo={bestCombo}
           onReplay={restart}
           onHome={() => router.back()}
+          onWatchAd={handleWatchAd}
         />
+      )}
+      {/* Banner ad — absolute bottom, always visible */}
+      {BannerAd && BannerAdSize && (
+        <View style={styles.bannerWrapper}>
+          <BannerAd
+            unitId={AD_UNIT_IDS.banner}
+            size={BannerAdSize.BANNER}
+            requestOptions={{ requestNonPersonalizedAdsOnly: false }}
+          />
+        </View>
       )}
     </View>
   );
 }
-
-// ─── Styles ───────────────────────────────────────────────────────────────────
+// ─── Main styles ──────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
   container: {
@@ -575,50 +695,79 @@ const styles = StyleSheet.create({
     paddingTop: 52, paddingHorizontal: 16, alignItems: "center",
   },
   header: {
-    flexDirection: "row", alignItems: "center",
-    width: "100%", height: 44, marginBottom: 12, gap: 10,
+    flexDirection: "row", justifyContent: "space-between",
+    alignItems: "center", width: "100%", height: 44, marginBottom: 4,
   },
-  back: { color: COLORS.textDim, fontSize: 16 },
-  headerCenter: { flex: 1, flexDirection: "row", alignItems: "center", gap: 10 },
-  modeLabel: {
-    color: COLORS.textDim, fontSize: 12, fontWeight: "bold", letterSpacing: 2,
+  back:     { color: COLORS.textDim, fontSize: 16 },
+  modeName: { color: COLORS.text, fontSize: 16, fontWeight: "bold" },
+  scoreRow: { alignItems: "center", marginBottom: 10, width: "100%" },
+  score:    { color: COLORS.text, fontSize: 52, fontWeight: "bold", textAlign: "center", lineHeight: 56 },
+  newRecordBadge: {
+    backgroundColor: "rgba(255,230,109,0.12)", borderRadius: 8,
+    paddingHorizontal: 10, paddingVertical: 3,
+    borderWidth: 1, borderColor: COLORS.accent, marginTop: 4,
+  },
+  newRecordText: { color: COLORS.accent, fontSize: 12, fontWeight: "bold" },
+  comboBadge: {
+    backgroundColor: "rgba(255,230,109,0.12)", borderRadius: 8,
+    paddingHorizontal: 10, paddingVertical: 3,
+    borderWidth: 1, borderColor: COLORS.accent,
   },
   comboText: { color: COLORS.accent, fontSize: 13, fontWeight: "bold" },
-  bestBox: { alignItems: "flex-end" },
-  bestBoxLabel: { color: COLORS.textDim, fontSize: 10, letterSpacing: 2 },
-  bestBoxNum: { color: COLORS.accent, fontSize: 18, fontWeight: "bold" },
-  scoreRow: {
-    flexDirection: "row", alignItems: "center",
-    gap: 10, marginBottom: 10, width: "100%",
+  bestRow:   { flexDirection: "row", gap: 6, alignItems: "center", marginBottom: 6 },
+  bestLabel: { color: COLORS.textDim, fontSize: 12 },
+  bestScore: { color: COLORS.textDim, fontSize: 12, fontWeight: "bold" },
+  gridWrapper:  { position: "relative" as any },
+  bannerWrapper: {
+    position: "absolute" as any,
+    bottom: 0, left: 0, right: 0,
+    alignItems: "center", zIndex: 10,
   },
-  score: { color: COLORS.text, fontSize: 32, fontWeight: "bold" },
-  newRecordBadge: {
-    backgroundColor: "rgba(255,230,109,0.15)",
-    borderRadius: 10, paddingHorizontal: 10, paddingVertical: 4,
-    borderWidth: 1, borderColor: "rgba(255,230,109,0.4)",
+  gridGlow: {
+    position: "absolute" as any,
+    top: -5, left: -5, right: -5, bottom: -5,
+    borderRadius: 20, borderWidth: 3,
+    borderColor: COLORS.primary,
+    shadowOpacity: 1, shadowRadius: 18,
+    shadowOffset: { width: 0, height: 0 },
   },
-  newRecordText: { color: COLORS.accent, fontSize: 11, fontWeight: "bold" },
+  comboFloat: {
+    position: "absolute" as any,
+    left: 0, right: 0, alignItems: "center", zIndex: 20,
+  },
+  comboFloatText: {
+    color: "#FFFFFF", fontSize: 22, fontWeight: "bold", letterSpacing: 1,
+    textShadowColor: "rgba(0,0,0,0.6)",
+    textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 4,
+  },
   gridContainer: {
-    backgroundColor: "rgba(255,255,255,0.05)",
-    borderRadius: 14, padding: 8, gap: GAP,
+    backgroundColor: "rgba(255,255,255,0.05)", borderRadius: 14, padding: 8, gap: GAP,
   },
   row: { flexDirection: "row", gap: GAP },
   cell: {
     width: CELL_SIZE, height: CELL_SIZE, borderRadius: CELL_R,
     backgroundColor: COLORS.cellEmpty,
+    alignItems: "center", justifyContent: "center", overflow: "hidden",
+  },
+  placementOverlay: {
+    position: "absolute" as any,
+    top: 0, left: 0, right: 0, bottom: 0,
+    padding: 8, gap: GAP, borderRadius: 14, backgroundColor: "transparent",
+  },
+  overlayCell: {
+    width: CELL_SIZE, height: CELL_SIZE,
+    borderRadius: CELL_R, backgroundColor: "transparent",
   },
   hint: { color: COLORS.textDim, fontSize: 11, marginTop: 8, marginBottom: 4 },
   tray: {
     flexDirection: "row", gap: 10, marginTop: 8,
     backgroundColor: "rgba(255,255,255,0.05)",
-    borderRadius: 18, padding: 12,
-    alignItems: "center", justifyContent: "center",
+    borderRadius: 18, padding: 12, alignItems: "center", justifyContent: "center",
   },
   traySlot: {
-    padding: 10, borderRadius: 12, borderWidth: 2,
-    borderColor: "transparent", alignItems: "center",
-    justifyContent: "center", minWidth: 72, minHeight: 56,
-    backgroundColor: "rgba(255,255,255,0.04)",
+    padding: 10, borderRadius: 12, borderWidth: 2, borderColor: "transparent",
+    alignItems: "center", justifyContent: "center",
+    minWidth: 72, minHeight: 56, backgroundColor: "rgba(255,255,255,0.04)",
   },
   traySlotSelected: {
     borderColor: COLORS.primary, backgroundColor: "rgba(78,205,196,0.1)",
@@ -626,12 +775,21 @@ const styles = StyleSheet.create({
   },
   trayEmpty: {
     minWidth: 72, minHeight: 56, borderRadius: 12,
-    borderWidth: 2, borderColor: "rgba(255,255,255,0.08)",
-    alignItems: "center", justifyContent: "center",
-    flexDirection: "row", gap: 5,
+    borderWidth: 1, borderColor: "rgba(255,255,255,0.06)",
+    borderStyle: "dashed", alignItems: "center", justifyContent: "center",
+    flexDirection: "row", gap: 4,
   },
   trayEmptyDot: {
-    width: 5, height: 5, borderRadius: 3,
-    backgroundColor: "rgba(255,255,255,0.15)",
+    width: 4, height: 4, borderRadius: 2, backgroundColor: "rgba(255,255,255,0.1)",
   },
+  pieceCountRow: { marginTop: 6, alignItems: "center" },
+  pieceCountText: { color: COLORS.textDim, fontSize: 12, letterSpacing: 0.5 },
+  headerCenter: { flex: 1, alignItems: "center" },
+  modeLabel: { color: COLORS.textDim, fontSize: 11, fontWeight: "bold", letterSpacing: 2 },
+  bestBox: {
+    backgroundColor: "rgba(255,255,255,0.06)", borderRadius: 10,
+    paddingHorizontal: 12, paddingVertical: 4, alignItems: "center",
+  },
+  bestBoxLabel: { color: COLORS.textDim, fontSize: 9, letterSpacing: 2 },
+  bestBoxNum:   { color: COLORS.text, fontSize: 14, fontWeight: "bold" },
 });

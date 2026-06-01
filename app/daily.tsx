@@ -15,7 +15,7 @@ import { COLORS, SIZES } from "../src/constants/theme";
 import { createGrid, canPlace, placePiece, clearLines, hasAnyValidMove } from "../src/game/grid";
 import { getDailySeed, randomPieceSeeded, seededRandom } from "../src/game/pieces";
 import { calculateScore, countCells } from "../src/game/scoring";
-import { loadTodaysDailyResult, saveDailyResult, updateAndLoadStreak } from "../src/store/storage";
+import { loadTodaysDailyResult, saveDailyResult, incrementStreakOnDailyComplete, updateAndLoadStreak } from "../src/store/storage";
 import { Grid, Piece, Tray } from "../src/types";
 
 // ─── Daily level config (fixed for all players) ───────────────────────────────
@@ -259,7 +259,7 @@ function ResultsOverlay({ phase, score, onHome }: {
   const isWon = phase === "won";
 
   // Generate shareable text — copy to clipboard (manual for now)
-  const shareText = `📅 BloxBurst Daily ${formatToday()}\n` +
+  const shareText = `📅 BlockBlast Daily ${formatToday()}\n` +
     `${"⭐".repeat(stars)}${"☆".repeat(3 - stars)}\n` +
     `Score: ${score.toLocaleString()}`;
 
@@ -406,6 +406,8 @@ export default function DailyScreen() {
     if (phase === "won" || phase === "failed" || phase === "stuck") {
       const stars = getStars(score);
       saveDailyResult(score, stars);
+      // Only increment streak when user actually completes the daily challenge
+      incrementStreakOnDailyComplete();
     }
   }, [phase]);
 

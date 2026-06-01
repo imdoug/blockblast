@@ -1,6 +1,6 @@
 // src/hooks/useSound.ts
-// Sound stubbed out — expo-av has a native compile issue with SDK 56.
-// Re-enable when doing the production EAS build.
+// Stubbed — expo-audio requires a native rebuild to work.
+// Will be enabled in next build after expo-audio is properly linked.
 
 export function useSound() {
   return {

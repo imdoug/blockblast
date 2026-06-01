@@ -1,13 +1,13 @@
 export const COLORS = {
   // Grid & background
-  background:   '#0F0C29',
+  background:   '#03071f',
   gridBg:       'rgba(255,255,255,0.05)',
   cellEmpty:    'rgba(255,255,255,0.04)',
 
   // Piece colors (8 options, indices 0-7)
   pieces: [
     { fill: '#FF6B6B', shadow: '#C0392B', highlight: '#FF9A9A' },
-    { fill: '#4ECDC4', shadow: '#2C9E96', highlight: '#7EDDD7' },
+    { fill: '#08aff7', shadow: '#0687C4', highlight: '#3FC1FF' },
     { fill: '#FFE66D', shadow: '#D4AC0D', highlight: '#FFF0A0' },
     { fill: '#A8E6CF', shadow: '#52B788', highlight: '#C8F0DE' },
     { fill: '#FF8B94', shadow: '#C0392B', highlight: '#FFAAB2' },
@@ -17,7 +17,7 @@ export const COLORS = {
   ],
 
   // UI
-  primary:  '#4ECDC4',
+  primary:  '#08aff7',
   accent:   '#FFE66D',
   danger:   '#FF6B6B',
   text:     '#FFFFFF',

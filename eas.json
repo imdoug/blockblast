@@ -16,6 +16,12 @@
     }
   },
   "submit": {
-    "production": {}
+    "production": {
+      "ios": {
+        "appleId": "imdoug@icloud.com",
+        "ascAppId": "6774247627",
+        "appleTeamId": "Y3S8FQYC63"
+      }
+    }
   }
 }

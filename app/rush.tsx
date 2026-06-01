@@ -1,6 +1,6 @@
 // app/rush/index.tsx
 //
-// Pressure Mode — BloxBurst's second game mode.
+// Pressure Mode — BlockBlast's second game mode.
 //
 // Core mechanic: every cell has a point multiplier that counts DOWN each turn.
 // Cells NEVER lock or disappear — the board clears exactly like classic Block Blast.
@@ -22,7 +22,7 @@ import {
   PanResponder, Animated, Dimensions,
 } from "react-native";
 import { useRef, useState, useCallback, useEffect } from "react";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import { COLORS, SIZES } from "../src/constants/theme";
 import { canPlace, hasAnyValidMove } from "../src/game/grid";
 import { randomPiece } from "../src/game/pieces";
@@ -514,6 +514,15 @@ export default function RushScreen() {
   }
 
   // ─── Restart ──────────────────────────────────────────────────────────────────
+
+  // Reset game every time the screen is focused — prevents stale score on re-entry
+  useFocusEffect(useCallback(() => {
+    setGrid(createRushGrid());
+    setTray([randomPiece(), randomPiece(), randomPiece()]);
+    setSelected(0); setScore(0); setCombo(0); setBestCombo(0);
+    setTotalLines(0); setTotalPieces(0); setPhase("playing");
+    setGhost(null); setGhostValid(false); setIsDragging(false);
+  }, []));
 
   function restart() {
     setGrid(createRushGrid());

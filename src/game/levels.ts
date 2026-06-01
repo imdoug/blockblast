@@ -34,7 +34,7 @@ export function generateLevel(id: number): LevelConfig {
   // Extra pieces granted when obstacles are present (compensate for blocked cells).
   const basePieces =
     id <= 20 ? 30 :
-    Math.max(12, Math.round(30 - (id - 20) * 0.23));
+    Math.max(10, Math.round(30 - (id - 20) * 0.28));
   const obstacleBonusPieces = Math.min(obs.length * 2, 8);
   const pieceCount = basePieces + obstacleBonusPieces;
 
@@ -47,7 +47,7 @@ export function generateLevel(id: number): LevelConfig {
 
   // Base formula: ~8% increase per level early, tapering to ~3% late
   const rawTarget = Math.round(
-    (500 + (id - 1) * 58 + Math.pow(id, 1.18) * 3) * sawFactor
+    (500 + (id - 1) * 68 + Math.pow(id, 1.22) * 3.5) * sawFactor
   );
 
   // Obstacle reduction: each obstacle makes the level harder because cells
@@ -56,7 +56,7 @@ export function generateLevel(id: number): LevelConfig {
   const avgDur = obs.length > 0
     ? obs.reduce((s, o) => s + o.durability, 0) / obs.length
     : 0;
-  const targetReduction = Math.round(obs.length * avgDur * 120);
+  const targetReduction = Math.round(obs.length * avgDur * 90);
   const targetScore = Math.max(300, rawTarget - targetReduction);
 
   return {

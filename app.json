@@ -1,11 +1,11 @@
 {
   "expo": {
     "name": "BloxBurst",
-    "slug": "bloxburst",
+    "slug": "blockblast",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "splash": {
+   "splash": {
       "image": "./assets/images/splash.png",
       "resizeMode": "contain",
       "backgroundColor": "#1B2A4A"
@@ -28,7 +28,21 @@
     },
     "scheme": "bloxburst",
     "plugins": [
-      "expo-router"
+      "expo-router",
+      [
+        "react-native-google-mobile-ads",
+        {
+          "androidAppId": "ca-app-pub-3940256099942544~3347511713",
+          "iosAppId": "ca-app-pub-4649688048415899~5057012442"
+        }
+      ],
+      [
+        "expo-tracking-transparency",
+        {
+          "userTrackingPermission": "We show ads to keep BloxBurst free. Your data is never sold."
+        }
+      ],
+      "expo-asset"
     ],
     "updates": {
       "enabled": false
@@ -39,6 +53,7 @@
       "eas": {
         "projectId": "e3480e30-b7f8-4e67-894b-69a1016e1474"
       }
-    }
+    },
+    "owner": "imdoug"
   }
 }
