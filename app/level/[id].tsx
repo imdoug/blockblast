@@ -2,7 +2,7 @@
 
 import {
   View, Text, StyleSheet, TouchableOpacity, Alert,
-  PanResponder, Animated, Dimensions,ImageBackground
+  PanResponder, Animated, Dimensions, ImageBackground, Image,
 } from "react-native";
 import { useRef, useState, useCallback, useEffect } from "react";
 import { router, useLocalSearchParams } from "expo-router";
@@ -47,18 +47,14 @@ const LIFT      = 60;
 
 // ─── Obstacle helpers ─────────────────────────────────────────────────────────
 
-function obstacleEmoji(maxDur: number): string {
-  if (maxDur >= 4) return "💣";
-  if (maxDur === 3) return "🪨";
-  return "🪵";
+// Returns the local image source for each obstacle type
+function obstacleImage(maxDur: number) {
+  if (maxDur >= 4) return require("../../assets/pieces/bomb.png");
+  if (maxDur === 3) return require("../../assets/pieces/stone.png");
+  return require("../../assets/pieces/wood.png");
 }
 
-function obstacleBg(dur: number, maxDur: number): string {
-  const r = dur / maxDur;
-  if (r > 0.7) return "rgba(80,50,20,0.85)";
-  if (r > 0.4) return "rgba(100,60,20,0.85)";
-  return "rgba(140,40,20,0.9)";
-}
+// obstacleBg removed — using image backgrounds now
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -142,8 +138,14 @@ function ScoreBar({ score, level, linesJustCleared, obsRemaining }: {
   // Goal text — shows obstacle requirement when relevant
   const hasObstacles = level.obstacles.length > 0;
   const goalMet      = score >= level.star3Score;
-  const obsGoalText  = hasObstacles && obsRemaining > 0
-    ? ` + destroy ${obsRemaining} 🧱`
+
+  // Use the actual obstacle emoji matching what's shown in the grid
+  const maxObsDur   = hasObstacles
+    ? Math.max(...level.obstacles.map((o: any) => o.durability))
+    : 2;
+  const obsEmoji    = maxObsDur >= 4 ? "💣" : maxObsDur >= 3 ? "🪨" : "🪵";
+  const obsGoalText = hasObstacles && obsRemaining > 0
+    ? ` + destroy ${obsRemaining} ${obsEmoji}`
     : "";
 
   return (
@@ -160,7 +162,7 @@ function ScoreBar({ score, level, linesJustCleared, obsRemaining }: {
       {/* Goal text — shows star3Score as the target */}
       <Text style={sbS.goalText}>
         {goalMet
-          ? (obsRemaining > 0 ? `Destroy ${obsRemaining} 🧱 to win!` : "Goal reached! 🎉")
+          ? (obsRemaining > 0 ? `Destroy ${obsRemaining} ${obsEmoji} to win!` : "Goal reached! 🎉")
           : `Goal: ${level.star3Score.toLocaleString()}${obsGoalText}`}
       </Text>
 
@@ -297,7 +299,7 @@ const rsS = StyleSheet.create({
     zIndex: 100,
   },
   modal: {
-    backgroundColor: "#1B2A4A",
+    backgroundColor: "#091526",
     borderRadius: 28,
     paddingHorizontal: 32,
     paddingVertical: 36,
@@ -367,17 +369,17 @@ const tipS = StyleSheet.create({
     padding: 24,
   },
   card: {
-    backgroundColor: "#1B2A4A",
+    backgroundColor: "#091526",
     borderRadius: 24,
     padding: 28,
     alignItems: "center",
     gap: 12,
     width: "100%",
     borderWidth: 1,
-    borderColor: "rgba(166,124,82,0.4)",
+    borderColor: "rgba(8,175,247,0.15)",
   },
   emoji:   { fontSize: 32, letterSpacing: 8 },
-  title:   { color: "#E8C99A", fontSize: 22, fontWeight: "bold" },
+  title:   { color: COLORS.accent, fontSize: 22, fontWeight: "bold" },
   body:    { color: "rgba(255,255,255,0.75)", fontSize: 15, textAlign: "center", lineHeight: 22 },
   divider: { width: "40%", height: 1, backgroundColor: "rgba(255,255,255,0.1)" },
   dismiss: { color: "rgba(255,255,255,0.4)", fontSize: 13 },
@@ -754,27 +756,37 @@ export default function LevelScreen() {
   // ── Render ──────────────────────────────────────────────────────────────────
 
   return (
-    <ImageBackground
+    <View
       style={styles.container}
-      resizeMode="cover"
-      source={require("../../assets/backgrounds/background_game_portrait.png")}
       onLayout={e => e.target.measure((_x, _y, _w, _h, px, py) => {
         containerOrigin.current = { x: px, y: py };
       })}
     >
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={handleBack}>
+        <TouchableOpacity onPress={handleBack} style={styles.headerSide}>
           <Text style={styles.back}>← Levels</Text>
         </TouchableOpacity>
-        {combo > 1 && (
-          <View style={styles.comboBadge}>
-            <Text style={styles.comboText}>🔥 ×{combo}</Text>
-          </View>
-        )}
-        {level.obstacles.length > 0 && (
-          <Text style={styles.obsRemaining}>🧱 {obsRemaining}</Text>
-        )}
+
+        {/* Logo — centered in header */}
+        <View style={styles.headerCenter}>
+          {/* <Image
+            source={require("../../assets/images/logo.png")}
+            style={styles.headerLogo}
+            resizeMode="contain"
+          /> */}
+        </View>
+
+        <View style={styles.headerSide}>
+          {combo > 1 && (
+            <View style={styles.comboBadge}>
+              <Text style={styles.comboText}>🔥 ×{combo}</Text>
+            </View>
+          )}
+          {level.obstacles.length > 0 && (
+            <Text style={styles.obsRemaining}>🧱 {obsRemaining}</Text>
+          )}
+        </View>
       </View>
 
       {/* Score bar */}
@@ -832,25 +844,41 @@ export default function LevelScreen() {
               const color       = cell !== null ? COLORS.pieces[cell] : null;
 
 
-              // Obstacle cell
+              // Obstacle cell — uses local image as background
               if (obs !== null) {
+                // Dim the image as durability drops to show damage
+                const imgOpacity = 0.5 + (obs.durability / obs.maxDurability) * 0.5;
                 return (
-                  <View key={c} style={[
-                    styles.cell,
-                    { backgroundColor: obstacleBg(obs.durability, obs.maxDurability) },
-                    willClear && { borderWidth: 2, borderColor: COLORS.accent },
-                    isHit && { backgroundColor: "rgba(200,90,30,0.95)" },
-                  ]}>
-                    <Text style={[styles.obstacleEmoji, { fontSize: CELL_SIZE * 0.52 }]}>
-                      {obstacleEmoji(obs.maxDurability)}
-                    </Text>
+                  <ImageBackground
+                    key={c}
+                    source={obstacleImage(obs.maxDurability)}
+                    style={[
+                      styles.cell,
+                      { overflow: "hidden" },
+                      willClear && { borderWidth: 2, borderColor: COLORS.accent },
+                      isHit && { opacity: 0.6 }, // brief flash on hit
+                    ]}
+                    imageStyle={{
+                      opacity: imgOpacity,
+                      resizeMode: "cover",
+                    }}
+                  >
+                    {/* Dark overlay gets stronger as damage increases */}
+                    <View style={[
+                      styles.obstacleDmgOverlay,
+                      { opacity: 1 - (obs.durability / obs.maxDurability) * 0.6 }
+                    ]} />
+
+                    {/* Durability number */}
                     <View style={styles.obstacleNumOverlay}>
                       <Text style={[styles.obstacleNumText, { fontSize: CELL_SIZE > 38 ? 11 : 9 }]}>
                         {obs.durability}
                       </Text>
                     </View>
+
+                    {/* Crack overlay at 1 hp */}
                     {obs.durability === 1 && <View style={styles.crackOverlay} />}
-                  </View>
+                  </ImageBackground>
                 );
               }
 
@@ -902,7 +930,7 @@ export default function LevelScreen() {
                       borderColor: gc.fill,
                     },
                     isGhost && !ghostValid && {
-                      backgroundColor: '#A9A9A9',
+                      backgroundColor: '#666666',
                       opacity: 1,
                       borderWidth: 2,
                       borderColor: COLORS.danger,
@@ -948,16 +976,7 @@ export default function LevelScreen() {
         )}
       </View>
 
-      {/* Piece counter below tray */}
-      <View style={styles.pieceCountRow}>
-        <Text style={[
-          styles.pieceCountText,
-          piecesRemaining <= 5 && { color: COLORS.accent },
-          piecesRemaining <= 2 && { color: COLORS.danger },
-        ]}>
-          {piecesRemaining} {piecesRemaining === 1 ? "piece" : "pieces"} left
-        </Text>
-      </View>
+
 
       {/* Goal reached banner — appears below tray, stays out of the way */}
       {goalReached && !goalDismissed && phase === "playing" && obsRemaining === 0 && score >= level.star3Score && (
@@ -988,7 +1007,11 @@ export default function LevelScreen() {
           <Text style={styles.goalToastEmoji}>🎉</Text>
           <Text style={styles.goalToastTitle}>Goal Reached!</Text>
           {obsRemaining > 0 && (
-            <Text style={styles.goalToastSub}>Now destroy the obstacles to win!</Text>
+            <Text style={styles.goalToastSub}>
+              {`Now destroy the ${obsRemaining} ${
+                (() => { const d = Math.max(...level.obstacles.map((o:any) => o.durability)); return d >= 4 ? "💣" : d >= 3 ? "🪨" : "🪵"; })()
+              } to win!`}
+            </Text>
           )}
         </Animated.View>
       )}
@@ -1046,28 +1069,43 @@ export default function LevelScreen() {
           />
         </View>
       )}
-    </ImageBackground>
+    </View>
   );
 }
 // ─── Main styles ──────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
+    flex: 1, backgroundColor: COLORS.background,
     paddingTop: 52, paddingHorizontal: 16, alignItems: "center",
   },
   header: {
     flexDirection: "row", alignItems: "center",
-    width: "100%", height: 44, marginBottom: 4, gap: 10,
+    width: "100%", height: 52, marginBottom: 4,
+  },
+  headerSide: {
+    width: 80,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  headerCenter: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerLogo: {
+    height: 36,
+    width: 120,
   },
   back:        { color: COLORS.textDim, fontSize: 16 },
   comboBadge: {
-    backgroundColor: "rgba(255,230,109,0.12)", borderRadius: 8,
+    backgroundColor: "rgba(255,217,61,0.12)", borderRadius: 8,
     paddingHorizontal: 10, paddingVertical: 3,
     borderWidth: 1, borderColor: COLORS.accent,
   },
   comboText:    { color: COLORS.accent, fontSize: 13, fontWeight: "bold" },
-  obsRemaining: { marginLeft: "auto" as any, color: "#A67C52", fontSize: 13, fontWeight: "bold" },
+  obsRemaining: { marginLeft: "auto" as any, color: COLORS.accent, fontSize: 13, fontWeight: "bold" },
   obstaclePopBanner: {
     position: "absolute" as any, top: "42%" as any,
     left: 32, right: 32, zIndex: 50,
@@ -1075,7 +1113,7 @@ const styles = StyleSheet.create({
     borderRadius: 18, paddingHorizontal: 20, paddingVertical: 14,
     borderWidth: 1, borderColor: "rgba(200,140,60,0.4)", alignItems: "center",
   },
-  obstaclePopText: { color: "#FFE0A0", fontSize: 14, fontWeight: "bold", textAlign: "center" },
+  obstaclePopText: { color: COLORS.accent, fontSize: 14, fontWeight: "bold", textAlign: "center" },
   gridWrapper:  { position: "relative" as any },
   bannerWrapper: {
     position: "absolute" as any,
@@ -1095,12 +1133,12 @@ const styles = StyleSheet.create({
     left: 0, right: 0, alignItems: "center", zIndex: 20,
   },
   comboFloatText: {
-    color: "#FFFFFF", fontSize: 22, fontWeight: "bold", letterSpacing: 1,
+    color: COLORS.text, fontSize: 22, fontWeight: "bold", letterSpacing: 1,
     textShadowColor: "rgba(0,0,0,0.6)",
     textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 4,
   },
   gridContainer: {
-    backgroundColor: "rgba(255,255,255,0.05)", borderRadius: 14, padding: 8, gap: GAP,
+    backgroundColor: COLORS.gridBg, borderRadius: 14, padding: 8, gap: GAP,
   },
   row: { flexDirection: "row", gap: GAP },
   cell: {
@@ -1108,13 +1146,17 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.cellEmpty,
     alignItems: "center", justifyContent: "center", overflow: "hidden",
   },
-  obstacleEmoji: { position: "absolute" as any, opacity: 0.9, lineHeight: CELL_SIZE },
+  obstacleDmgOverlay: {
+    position: "absolute" as any,
+    top: 0, left: 0, right: 0, bottom: 0,
+    backgroundColor: "#000000",
+  },
   obstacleNumOverlay: {
     position: "absolute" as any, bottom: 2, right: 3,
     backgroundColor: "rgba(0,0,0,0.55)", borderRadius: 4,
     paddingHorizontal: 3, paddingVertical: 1, minWidth: 14, alignItems: "center",
   },
-  obstacleNumText: { color: "#FFE0A0", fontWeight: "bold", lineHeight: 13 },
+  obstacleNumText: { color: COLORS.accent, fontWeight: "bold", lineHeight: 13 },
   crackOverlay: {
     position: "absolute" as any,
     top: 0, left: 0, right: 0, bottom: 0,
@@ -1137,7 +1179,7 @@ const styles = StyleSheet.create({
   hint: { color: COLORS.textDim, fontSize: 11, marginTop: 8, marginBottom: 4 },
   tray: {
     flexDirection: "row", gap: 10, marginTop: 8,
-    backgroundColor: "rgba(255,255,255,0.05)",
+    backgroundColor: COLORS.gridBg,
     borderRadius: 18, padding: 12, alignItems: "center", justifyContent: "center",
   },
   traySlot: {
@@ -1165,7 +1207,7 @@ const styles = StyleSheet.create({
     top: "30%" as any,
     left: 32, right: 32,
     zIndex: 60,
-    backgroundColor: "rgba(78,205,196,0.95)",
+    backgroundColor: COLORS.primary,
     borderRadius: 20,
     paddingVertical: 18,
     paddingHorizontal: 24,
@@ -1178,7 +1220,7 @@ const styles = StyleSheet.create({
   },
   goalToastEmoji:  { fontSize: 36 },
   goalToastTitle: {
-    color: "#0F1B35",
+    color: COLORS.background,
     fontSize: 22, fontWeight: "bold", letterSpacing: 0.5,
   },
   goalToastSub: {
@@ -1187,7 +1229,7 @@ const styles = StyleSheet.create({
   },
   goalBanner: {
     marginTop: 8, width: "100%",
-    backgroundColor: "rgba(78,205,196,0.08)",
+    backgroundColor: "rgba(8,175,247,0.08)",
     borderRadius: 14, borderWidth: 1.5, borderColor: COLORS.primary,
     paddingHorizontal: 12, paddingVertical: 8, alignItems: "center", gap: 8,
   },

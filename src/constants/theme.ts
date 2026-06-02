@@ -6,22 +6,22 @@ export const COLORS = {
 
   // Piece colors (8 options, indices 0-7)
   pieces: [
-    { fill: '#FF6B6B', shadow: '#C0392B', highlight: '#FF9A9A' },
-    { fill: '#08aff7', shadow: '#0687C4', highlight: '#3FC1FF' },
-    { fill: '#FFE66D', shadow: '#D4AC0D', highlight: '#FFF0A0' },
-    { fill: '#A8E6CF', shadow: '#52B788', highlight: '#C8F0DE' },
-    { fill: '#FF8B94', shadow: '#C0392B', highlight: '#FFAAB2' },
-    { fill: '#6C5CE7', shadow: '#4A3AB5', highlight: '#9D8FF0' },
-    { fill: '#FD9644', shadow: '#D35400', highlight: '#FDBA7E' },
-    { fill: '#54A0FF', shadow: '#2980B9', highlight: '#85C1FF' },
-  ],
+  { fill: '#FC3346', shadow: '#B80F22', highlight: '#FF7785' },
+  { fill: '#00DAD6', shadow: '#008F8C', highlight: '#5FFFFB' },
+  { fill: '#FDC818', shadow: '#B98500', highlight: '#FFE96A' },
+  { fill: '#50F56F', shadow: '#16A83A', highlight: '#9CFFAD' },
+  { fill: '#8F34FA', shadow: '#5514B8', highlight: '#B97AFF' },
+  { fill: '#FD7F01', shadow: '#B84C00', highlight: '#FFB04D' },
+  { fill: '#088EFD', shadow: '#0059B8', highlight: '#66BFFF' },
+  { fill: '#FB4297', shadow: '#B81462', highlight: '#FF85BF' },
+],
 
   // UI
   primary:  '#08aff7',
-  accent:   '#FFE66D',
-  danger:   '#FF6B6B',
+  accent:   '#FFD93D',
+  danger:   '#FF385C',
   text:     '#FFFFFF',
-  textDim:  'rgba(255,255,255,0.5)',
+  textDim:  'rgba(255,255,255,0.55)',
 };
 
 export const SIZES = {
