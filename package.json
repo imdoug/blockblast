@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "main": "expo-router/entry",
   "dependencies": {
+    "@expo-google-fonts/fredoka-one": "^0.2.3",
+    "@expo-google-fonts/luckiest-guy": "^0.4.1",
+    "@expo-google-fonts/outfit": "^0.4.3",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@worklets/core": "^0.0.0",
     "expo": "~56.0.6",
@@ -10,9 +13,11 @@
     "expo-audio": "~56.0.11",
     "expo-constants": "~56.0.16",
     "expo-dev-client": "~56.0.16",
+    "expo-font": "~56.0.5",
     "expo-haptics": "~56.0.3",
     "expo-linking": "~56.0.12",
     "expo-router": "~56.2.7",
+    "expo-splash-screen": "~56.0.10",
     "expo-status-bar": "~56.0.4",
     "expo-tracking-transparency": "~56.0.5",
     "react": "19.2.3",
@@ -20,10 +25,12 @@
     "react-native-google-mobile-ads": "^16.3.3",
     "react-native-purchases": "^10.2.0",
     "react-native-safe-area-context": "~5.7.0",
-    "react-native-screens": "4.25.2"
+    "react-native-screens": "4.25.2",
+    "react-native-svg": "15.15.4"
   },
   "devDependencies": {
     "@types/react": "~19.2.2",
+    "react-native-svg-transformer": "^1.5.3",
     "typescript": "~6.0.3"
   },
   "scripts": {

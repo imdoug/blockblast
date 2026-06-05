@@ -1,10 +1,8 @@
-// app/settings.tsx
-
+import { useState, useEffect } from "react";
 import {
   View, Text, StyleSheet, TouchableOpacity,
-  Switch, Alert, ScrollView, Linking,
+  Switch, Alert, ScrollView, Linking, Image, ImageSourcePropType,
 } from "react-native";
-import { useState, useEffect } from "react";
 import { router } from "expo-router";
 import Constants from "expo-constants";
 import { COLORS } from "../src/constants/theme";
@@ -14,6 +12,13 @@ import {
   clearAllData,
 } from "../src/store/storage";
 import { setHapticsEnabled } from "../src/hooks/useHaptics";
+
+const PhoneIcon = require("../assets/settings-icons/phone.png");
+const SoundIcon = require("../assets/settings-icons/sound.png");
+const TrashIcon = require("../assets/settings-icons/trash.png");
+const StarIcon  = require("../assets/settings-icons/star.png");
+const LockIcon  = require("../assets/settings-icons/lock.png");
+const InfoIcon  = require("../assets/settings-icons/info.png");
 
 const PRIVACY_URL = "https://imdoug.github.io/bloxburst-privacy/";
 const VERSION = Constants.expoConfig?.version ?? "1.0.0";
@@ -27,12 +32,12 @@ function SectionHeader({ title }: { title: string }) {
 function ToggleRow({
   icon, label, sublabel, value, onToggle, disabled,
 }: {
-  icon: string; label: string; sublabel?: string;
+  icon: ImageSourcePropType; label: string; sublabel?: string;
   value: boolean; onToggle: (v: boolean) => void; disabled?: boolean;
 }) {
   return (
     <View style={[s.row, disabled && s.rowDisabled]}>
-      <Text style={s.rowIcon}>{icon}</Text>
+      <Image source={icon} style={s.rowIcon} />
       <View style={s.rowText}>
         <Text style={s.rowLabel}>{label}</Text>
         {sublabel && <Text style={s.rowSub}>{sublabel}</Text>}
@@ -50,11 +55,11 @@ function ToggleRow({
 }
 
 function LinkRow({ icon, label, sublabel, onPress }: {
-  icon: string; label: string; sublabel?: string; onPress: () => void;
+  icon: ImageSourcePropType; label: string; sublabel?: string; onPress: () => void;
 }) {
   return (
     <TouchableOpacity style={s.row} onPress={onPress} activeOpacity={0.7}>
-      <Text style={s.rowIcon}>{icon}</Text>
+      <Image source={icon} style={s.rowIcon} />
       <View style={s.rowText}>
         <Text style={s.rowLabel}>{label}</Text>
         {sublabel && <Text style={s.rowSub}>{sublabel}</Text>}
@@ -65,11 +70,11 @@ function LinkRow({ icon, label, sublabel, onPress }: {
 }
 
 function DangerRow({ icon, label, sublabel, onPress }: {
-  icon: string; label: string; sublabel?: string; onPress: () => void;
+  icon: ImageSourcePropType; label: string; sublabel?: string; onPress: () => void;
 }) {
   return (
-    <TouchableOpacity style={[s.row, s.dangerRow]} onPress={onPress} activeOpacity={0.7}>
-      <Text style={s.rowIcon}>{icon}</Text>
+    <TouchableOpacity style={s.row} onPress={onPress} activeOpacity={0.7}>
+      <Image source={icon} style={s.rowIcon} />
       <View style={s.rowText}>
         <Text style={[s.rowLabel, s.dangerLabel]}>{label}</Text>
         {sublabel && <Text style={s.rowSub}>{sublabel}</Text>}
@@ -82,32 +87,22 @@ function DangerRow({ icon, label, sublabel, onPress }: {
 
 export default function SettingsScreen() {
   const [haptics, setHaptics] = useState(true);
-  const [sound, setSound] = useState(true);
+  const [sound, setSound]     = useState(true);
 
-  // Load preferences on mount
   useEffect(() => {
     async function load() {
-      const [h, so] = await Promise.all([
-        loadHapticsEnabled(),
-        loadSoundEnabled(),
-      ]);
-      setHaptics(h);
-      setSound(so);
-      // Sync module-level haptics flag
+      const [h, so] = await Promise.all([loadHapticsEnabled(), loadSoundEnabled()]);
+      setHaptics(h); setSound(so);
       setHapticsEnabled(h);
     }
     load();
   }, []);
 
   function toggleHaptics(v: boolean) {
-    setHaptics(v);
-    saveHapticsEnabled(v);
-    setHapticsEnabled(v); // instant effect across all screens
+    setHaptics(v); saveHapticsEnabled(v); setHapticsEnabled(v);
   }
-
   function toggleSound(v: boolean) {
-    setSound(v);
-    saveSoundEnabled(v);
+    setSound(v); saveSoundEnabled(v);
   }
 
   function handleResetProgress() {
@@ -117,8 +112,7 @@ export default function SettingsScreen() {
       [
         { text: "Cancel", style: "cancel" },
         {
-          text: "Reset Everything",
-          style: "destructive",
+          text: "Reset Everything", style: "destructive",
           onPress: async () => {
             await clearAllData();
             Alert.alert(
@@ -132,23 +126,14 @@ export default function SettingsScreen() {
     );
   }
 
-  function handlePrivacyPolicy() {
-    Linking.openURL(PRIVACY_URL);
-  }
+  function handlePrivacyPolicy() { Linking.openURL(PRIVACY_URL); }
 
   function handleRateApp() {
-    // Replace with your real App Store ID once published
-    // Format: https://apps.apple.com/app/idXXXXXXXXX?action=write-review
-    Alert.alert(
-      "Not published yet",
-      "Rate us on the App Store once the app is live!",
-      [{ text: "OK" }]
-    );
+    Alert.alert("Not published yet", "Rate us on the App Store once the app is live!", [{ text: "OK" }]);
   }
 
   return (
     <View style={s.container}>
-      {/* Header */}
       <View style={s.header}>
         <TouchableOpacity onPress={() => router.back()}>
           <Text style={s.back}>← Back</Text>
@@ -157,16 +142,12 @@ export default function SettingsScreen() {
         <View style={{ width: 60 }} />
       </View>
 
-      <ScrollView
-        style={{ flex: 1 }}
-        contentContainerStyle={s.content}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Game feel */}
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
+
         <SectionHeader title="Game Feel" />
         <View style={s.card}>
           <ToggleRow
-            icon="📳"
+            icon={PhoneIcon}
             label="Haptics"
             sublabel="Vibration feedback on piece placement and line clears"
             value={haptics}
@@ -174,7 +155,7 @@ export default function SettingsScreen() {
           />
           <View style={s.divider} />
           <ToggleRow
-            icon="🔊"
+            icon={SoundIcon}
             label="Sound effects"
             sublabel="Coming soon — wire in with the production build"
             value={sound}
@@ -183,36 +164,34 @@ export default function SettingsScreen() {
           />
         </View>
 
-        {/* Progress */}
         <SectionHeader title="Progress" />
         <View style={s.card}>
           <DangerRow
-            icon="🗑️"
+            icon={TrashIcon}
             label="Reset all progress"
             sublabel="Clears levels, stars, personal best, and streak"
             onPress={handleResetProgress}
           />
         </View>
 
-        {/* About */}
         <SectionHeader title="About" />
         <View style={s.card}>
           <LinkRow
-            icon="🔒"
+            icon={LockIcon}
             label="Privacy Policy"
             sublabel="How we handle your data"
             onPress={handlePrivacyPolicy}
           />
           <View style={s.divider} />
           <LinkRow
-            icon="⭐"
+            icon={StarIcon}
             label="Rate BloxBurst"
             sublabel="Enjoying the game? Leave a review"
             onPress={handleRateApp}
           />
           <View style={s.divider} />
           <View style={s.row}>
-            <Text style={s.rowIcon}>ℹ️</Text>
+            <Image source={InfoIcon} style={s.rowIcon} />
             <View style={s.rowText}>
               <Text style={s.rowLabel}>Version</Text>
               <Text style={s.rowSub}>BloxBurst v{VERSION}</Text>
@@ -220,11 +199,7 @@ export default function SettingsScreen() {
           </View>
         </View>
 
-        {/* Made with love */}
-        <Text style={s.footer}>
-          Made with ❤️ · BloxBurst © 2026
-        </Text>
-
+        <Text style={s.footer}>Made with ❤️ · BloxBurst © 2026</Text>
       </ScrollView>
     </View>
   );
@@ -233,71 +208,22 @@ export default function SettingsScreen() {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-    paddingTop: 52,
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 20,
-    height: 44,
-    marginBottom: 8,
-  },
-  back: { color: COLORS.textDim, fontSize: 16, width: 60 },
-  title: {
-    color: COLORS.text,
-    fontSize: 18,
-    fontWeight: "bold",
-    textAlign: "center",
-  },
-  content: {
-    paddingHorizontal: 16,
-    paddingBottom: 48,
-  },
-  sectionHeader: {
-    color: COLORS.textDim,
-    fontSize: 11,
-    fontWeight: "bold",
-    letterSpacing: 2,
-    textTransform: "uppercase",
-    marginTop: 24,
-    marginBottom: 8,
-    marginLeft: 4,
-  },
-  card: {
-    backgroundColor: "rgba(255,255,255,0.06)",
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.07)",
-    overflow: "hidden",
-  },
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    gap: 12,
-  },
-  rowDisabled: { opacity: 0.45 },
-  dangerRow: { },
-  rowIcon: { fontSize: 20, width: 28, textAlign: "center" },
-  rowText: { flex: 1, gap: 2 },
-  rowLabel: { color: COLORS.text, fontSize: 15 },
-  dangerLabel: { color: COLORS.danger },
-  rowSub: { color: COLORS.textDim, fontSize: 12, lineHeight: 16 },
-  rowArrow: { color: COLORS.textDim, fontSize: 20, lineHeight: 22 },
-  divider: {
-    height: 1,
-    backgroundColor: "rgba(255,255,255,0.06)",
-    marginLeft: 56,
-  },
-  footer: {
-    color: COLORS.textDim,
-    fontSize: 13,
-    textAlign: "center",
-    marginTop: 36,
-  },
+  container:     { flex: 1, backgroundColor: COLORS.background, paddingTop: 52 },
+  header:        { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, height: 44, marginBottom: 8 },
+  back:          { color: COLORS.textDim, fontSize: 16, width: 60, fontFamily: "FredokaOne_400Regular" },
+  title:         { color: COLORS.text, fontSize: 18, fontWeight: "bold", textAlign: "center", fontFamily: "LuckiestGuy_400Regular" },
+  content:       { paddingHorizontal: 16, paddingBottom: 48 },
+  sectionHeader: { color: COLORS.textDim, fontSize: 11, fontWeight: "bold", letterSpacing: 2, textTransform: "uppercase", marginTop: 24, marginBottom: 8, marginLeft: 4, fontFamily: "LuckiestGuy_400Regular" },
+  card:          { backgroundColor: "rgba(255,255,255,0.06)", borderRadius: 16, borderWidth: 1, borderColor: "rgba(255,255,255,0.07)", overflow: "hidden" },
+  row:           { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 14, gap: 12 },
+  rowDisabled:   { opacity: 0.45 },
+  rowIcon:       { width: 22, height: 22, resizeMode: "contain" },
+  rowText:       { flex: 1, gap: 2 },
+  rowLabel:      { color: COLORS.text, fontSize: 15, fontFamily: "FredokaOne_400Regular" },
+  dangerLabel:   { color: COLORS.danger, fontFamily: "FredokaOne_400Regular" },
+  rowSub:        { color: COLORS.textDim, fontSize: 12, lineHeight: 16, fontFamily: "FredokaOne_400Regular" },
+  rowArrow:      { color: COLORS.textDim, fontSize: 20, lineHeight: 22, fontFamily: "FredokaOne_400Regular" },
+  divider:       { height: 1, backgroundColor: "rgba(255,255,255,0.06)", marginLeft: 50 },
+  footer:        { color: COLORS.textDim, fontSize: 13, textAlign: "center", marginTop: 36, fontFamily: "FredokaOne_400Regular" },
+
 });

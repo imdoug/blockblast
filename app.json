@@ -5,10 +5,10 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-   "splash": {
+    "splash": {
       "image": "./assets/images/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#1B2A4A"
+      "backgroundColor": "#061036"
     },
     "ios": {
       "supportsTablet": false,
@@ -42,7 +42,9 @@
           "userTrackingPermission": "We show ads to keep BloxBurst free. Your data is never sold."
         }
       ],
-      "expo-asset"
+      "expo-asset",
+      "expo-font",
+      "expo-splash-screen"
     ],
     "updates": {
       "enabled": false

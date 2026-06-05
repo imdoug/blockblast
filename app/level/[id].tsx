@@ -770,11 +770,11 @@ export default function LevelScreen() {
 
         {/* Logo — centered in header */}
         <View style={styles.headerCenter}>
-          {/* <Image
+          <Image
             source={require("../../assets/images/logo.png")}
             style={styles.headerLogo}
             resizeMode="contain"
-          /> */}
+          />
         </View>
 
         <View style={styles.headerSide}>
@@ -844,10 +844,8 @@ export default function LevelScreen() {
               const color       = cell !== null ? COLORS.pieces[cell] : null;
 
 
-              // Obstacle cell — uses local image as background
+              // Obstacle cell — full opacity image, only number changes
               if (obs !== null) {
-                // Dim the image as durability drops to show damage
-                const imgOpacity = 0.5 + (obs.durability / obs.maxDurability) * 0.5;
                 return (
                   <ImageBackground
                     key={c}
@@ -856,28 +854,15 @@ export default function LevelScreen() {
                       styles.cell,
                       { overflow: "hidden" },
                       willClear && { borderWidth: 2, borderColor: COLORS.accent },
-                      isHit && { opacity: 0.6 }, // brief flash on hit
                     ]}
-                    imageStyle={{
-                      opacity: imgOpacity,
-                      resizeMode: "cover",
-                    }}
+                    imageStyle={{ resizeMode: "cover" }}
                   >
-                    {/* Dark overlay gets stronger as damage increases */}
-                    <View style={[
-                      styles.obstacleDmgOverlay,
-                      { opacity: 1 - (obs.durability / obs.maxDurability) * 0.6 }
-                    ]} />
-
-                    {/* Durability number */}
+                    {/* Durability number — the only thing that changes */}
                     <View style={styles.obstacleNumOverlay}>
                       <Text style={[styles.obstacleNumText, { fontSize: CELL_SIZE > 38 ? 11 : 9 }]}>
                         {obs.durability}
                       </Text>
                     </View>
-
-                    {/* Crack overlay at 1 hp */}
-                    {obs.durability === 1 && <View style={styles.crackOverlay} />}
                   </ImageBackground>
                 );
               }
@@ -920,23 +905,35 @@ export default function LevelScreen() {
               {Array.from({ length: 8 }, (_, c) => {
                 const isGhost = ghostCells.has(`${r},${c}`);
                 const gc      = COLORS.pieces[activePiece.color];
-                return (
-                  <View key={c} style={[
-                    styles.overlayCell,
-                    isGhost && ghostValid  && {
-                      backgroundColor: gc.fill,
-                      opacity: 0.72,
-                      borderWidth: 2,
-                      borderColor: gc.fill,
-                    },
-                    isGhost && !ghostValid && {
-                      backgroundColor: '#666666',
-                      opacity: 1,
-                      borderWidth: 2,
-                      borderColor: COLORS.danger,
-                    },
-                  ]} />
-                );
+
+                // Valid placement — piece color with border
+                if (isGhost && ghostValid) {
+                  return (
+                    <View key={c} style={[
+                      styles.overlayCell,
+                      { backgroundColor: gc.fill, opacity: 1, borderWidth: 2, borderColor: gc.fill },
+                    ]} />
+                  );
+                }
+
+                // Invalid placement — piece color background + block.png overlay
+                if (isGhost && !ghostValid) {
+                  return (
+                    <View key={c} style={[
+                      styles.overlayCell,
+                      { backgroundColor: gc.fill, borderWidth: 2, borderColor: "#050d38" },
+                    ]}>
+                      <Image
+                        source={require("../../assets/pieces/block.png")}
+                        style={styles.blockOverlay}
+                        resizeMode="cover"
+                      />
+                    </View>
+                  );
+                }
+
+                // Empty overlay cell
+                return <View key={c} style={styles.overlayCell} />;
               })}
             </View>
           ))}
@@ -1175,6 +1172,13 @@ const styles = StyleSheet.create({
   overlayCell: {
     width: CELL_SIZE, height: CELL_SIZE,
     borderRadius: CELL_R, backgroundColor: "transparent",
+  },
+  blockOverlay: {
+    position: "absolute" as any,
+    top: 0, left: 0, right: 0, bottom: 0,
+    width: CELL_SIZE, height: CELL_SIZE,
+    borderRadius: CELL_R,
+    opacity: 0.85,
   },
   hint: { color: COLORS.textDim, fontSize: 11, marginTop: 8, marginBottom: 4 },
   tray: {
