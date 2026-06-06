@@ -13,14 +13,16 @@ import {
   loadClassicBest, loadAllStars, hasSeenOnboarding,
 } from "../src/store/storage";
 
-const BTN_CHALLENGE  = require("../assets/buttons/Button_Challenge.png");
-const BTN_PLAY       = require("../assets/buttons/Button_Play.png");
-const BTN_ALL_LEVELS = require("../assets/buttons/Button_AllLevels.png");
-const BTN_CLASSIC    = require("../assets/buttons/Button_Classic.png");
-const BTN_RUSH       = require("../assets/buttons/Button_Rush.png");
-const BTN_STARS      = require("../assets/buttons/Button_Stars.png");
-const BTN_STREAK     = require("../assets/buttons/Button_Streak.png");
-const BTN_TROPHY     = require("../assets/buttons/Button_Trophy.png");
+// ── Icons only (no more BTN_* background images) ──────────────────────────────
+const ICON_ALL_LEVELS  = require("../assets/icons/Icon_AllLevels.png");
+const ICON_CHALLENGE   = require("../assets/icons/icon_Challenge.png");
+const ICON_CLASSIC     = require("../assets/icons/icon_Classic.png");
+const ICON_PLAY        = require("../assets/icons/icon_Play.png");
+const ICON_RUSH        = require("../assets/icons/icon_Rush.png");
+const ICON_STARS       = require("../assets/icons/icon_Stars.png");
+const ICON_STREAK      = require("../assets/icons/icon_Streak.png");
+const ICON_TROPHY      = require("../assets/icons/icon_Trophy.png");
+
 const BTN_SETTINGS = require("../assets/buttons/Button_setting.png");
 
 export default function HomeScreen() {
@@ -61,6 +63,7 @@ export default function HomeScreen() {
     >
       <StatusBar style="light" />
 
+      {/* Settings */}
       <TouchableOpacity
         style={styles.settingsBtn}
         onPress={() => router.push("/settings")}
@@ -69,49 +72,55 @@ export default function HomeScreen() {
         <Image source={BTN_SETTINGS} style={styles.settingsIcon} resizeMode="contain" />
       </TouchableOpacity>
 
-      {/* <Text style={styles.subtitle}>Block puzzle · clear lines · score big</Text> */}
-
-      {/* Stats row — Trophy + Stars side by side */}
+      {/* ── Stats row ── */}
       {(classicBest > 0 || totalStars > 0) && (
         <View style={styles.statsRow}>
-          <View style={styles.statWrapper}>
-            <Image source={BTN_TROPHY} style={styles.statBtnBg} resizeMode="stretch" />
+          {/* Trophy / Classic Best */}
+          <TouchableOpacity
+            activeOpacity={0.8}
+            style={[styles.statCard, { borderColor: "#FFE600" }]}
+          >
+            <Image source={ICON_TROPHY} style={styles.statIcon} resizeMode="contain" />
             <View style={styles.statTextArea}>
-              <Text style={styles.statValue} numberOfLines={1}>
+              <Text style={[styles.statValue, { color: "#FFE600" }]} numberOfLines={1}>
                 {classicBest > 0 ? classicBest.toLocaleString() : "0"}
               </Text>
-              <Text style={styles.statLabel}>classic best</Text>
+              <Text style={[styles.statLabel, { color: "#ffe600" }]}>classic best</Text>
             </View>
-          </View>
+          </TouchableOpacity>
 
-          <View style={styles.statWrapper}>
-            <Image source={BTN_STARS} style={styles.statBtnBg} resizeMode="stretch" />
+          {/* Stars */}
+          <TouchableOpacity
+            activeOpacity={0.8}
+            style={[styles.statCard, { borderColor: "#FFE600" }]}
+          >
+            <Image source={ICON_STARS} style={styles.statIcon} resizeMode="contain" />
             <View style={styles.statTextArea}>
-              <Text style={styles.statValue} numberOfLines={1}>
+              <Text style={[styles.statValue, { color: "#FFE600" }]} numberOfLines={1}>
                 {totalStars} / 297
               </Text>
-              <Text style={styles.statLabel}>stars earned</Text>
+              <Text style={[styles.statLabel, { color: "#FFE600" }]}>stars earned</Text>
             </View>
-          </View>
+          </TouchableOpacity>
         </View>
       )}
 
-      {/* Streak */}
+      {/* ── Streak ── */}
       {streak > 0 && (
-        <View style={styles.streakWrapper}>
-          <Image source={BTN_STREAK} style={styles.streakBg} resizeMode="stretch" />
-          <Text style={styles.streakText}>🔥 {streak} day streak</Text>
+        <View style={[styles.streakCard, { borderColor: "#FF7C30" }]}>
+          <Image source={ICON_STREAK} style={styles.streakIcon} resizeMode="contain" />
+          <Text style={styles.streakText}>{streak} day streak </Text>
         </View>
       )}
 
-      {/* Daily Challenge */}
+      {/* ── Daily Challenge ── */}
       <TouchableOpacity
         activeOpacity={0.85}
-        style={styles.mainBtnWrapper}
+        style={[styles.mainBtnDaily, { borderColor: "#f40c54" }]}
         onPress={() => router.push("/daily")}
       >
-        <Image source={BTN_CHALLENGE} style={styles.mainBtnBg} resizeMode="stretch" />
-        <View style={styles.mainBtnTextArea}>
+        <Image source={ICON_CHALLENGE} style={styles.mainBtnIconDaily} resizeMode="contain" />
+        <View style={styles.mainBtnText}>
           <Text style={[styles.mainBtnTitle, { color: "#f40c54" }]} numberOfLines={1}>
             {dailyDone ? "DAILY DONE!" : "DAILY CHALLENGE"}
           </Text>
@@ -121,41 +130,40 @@ export default function HomeScreen() {
         </View>
       </TouchableOpacity>
 
-      {/* Play Level */}
+      {/* ── Play Level ── */}
       <TouchableOpacity
         activeOpacity={0.85}
-        style={styles.mainBtnWrapper}
+        style={[styles.mainBtnPlay, { borderColor: "#0aaff8" }]}
         onPress={() => router.push(`/level/${highestLevel}`)}
       >
-        <Image source={BTN_PLAY} style={styles.mainBtnBg} resizeMode="stretch" />
-        <View style={styles.mainBtnTextArea}>
-          <Text style={[styles.mainBtnTitle, { color: "#0aaff8", fontSize: 28, marginLeft: 20, marginTop: 6
-           }]} numberOfLines={1}>
+        <Image source={ICON_PLAY} style={styles.mainBtnIconPlay} resizeMode="contain" />
+        <View style={styles.mainBtnText}>
+          <Text style={[styles.mainBtnTitle, { color: "#0aaff8", fontSize: 28 }]} numberOfLines={1}>
             PLAY LEVEL {highestLevel}
           </Text>
         </View>
       </TouchableOpacity>
 
-      {/* All Levels */}
+      {/* ── All Levels ── */}
       <TouchableOpacity
         activeOpacity={0.85}
-        style={styles.allLevelsWrapper}
+        style={[styles.allLevelsBtn, { borderColor: "#0aaff8" }]}
         onPress={() => router.push("/campaign")}
       >
-        <Image source={BTN_ALL_LEVELS} style={styles.mainBtnBg} resizeMode="stretch" />
-        <View style={styles.allLevelsCenterArea}>
-          <Text style={styles.allLevelsTitle} numberOfLines={1}>ALL LEVELS</Text>
-        </View>
+        <Image source={ICON_ALL_LEVELS} style={styles.allLevelsIcon} resizeMode="contain" />
+        <Text style={[styles.allLevelsTitle, { color: "#0aaff8" }]} numberOfLines={1}>
+          ALL LEVELS
+        </Text>
       </TouchableOpacity>
 
-      {/* Classic Mode */}
+      {/* ── Classic Mode ── */}
       <TouchableOpacity
         activeOpacity={0.85}
-        style={styles.mainBtnWrapper}
+        style={[styles.mainBtnClassic, { borderColor: "#19db6c" }]}
         onPress={() => router.push("/game")}
       >
-        <Image source={BTN_CLASSIC} style={styles.mainBtnBg} resizeMode="stretch" />
-        <View style={styles.mainBtnTextArea}>
+        <Image source={ICON_CLASSIC} style={styles.mainBtnIconClassic} resizeMode="contain" />
+        <View style={styles.mainBtnText}>
           <Text style={[styles.mainBtnTitle, { color: "#19db6c" }]} numberOfLines={1}>
             CLASSIC MODE
           </Text>
@@ -165,14 +173,14 @@ export default function HomeScreen() {
         </View>
       </TouchableOpacity>
 
-      {/* Rush Mode */}
+      {/* ── Rush Mode ── */}
       <TouchableOpacity
         activeOpacity={0.85}
-        style={styles.mainBtnWrapper}
+        style={[styles.mainBtnRush, { borderColor: "#feca19" }]}
         onPress={() => router.push("/rush")}
       >
-        <Image source={BTN_RUSH} style={styles.mainBtnBg} resizeMode="stretch" />
-        <View style={styles.mainBtnTextArea}>
+        <Image source={ICON_RUSH} style={styles.mainBtnIconRush} resizeMode="contain" />
+        <View style={styles.mainBtnText}>
           <Text style={[styles.mainBtnTitle, { color: "#feca19" }]} numberOfLines={1}>
             RUSH MODE
           </Text>
@@ -186,10 +194,11 @@ export default function HomeScreen() {
   );
 }
 
-// The icon occupies roughly the left 22% of each button image.
-// TEXT_OFFSET pushes content past the icon; the remaining flex space
-// is centred so text sits in the middle of the dark right portion.
-const ICON_OFFSET = "22%";
+// ─── Shared card look ──────────────────────────────────────────────────────────
+// Dark semi-transparent background + 2px coloured border + rounded corners.
+const CARD_BG      = "rgba(10, 12, 24, 0.72)";
+const CARD_RADIUS  = 16;
+const BORDER_W     = 2;
 
 const styles = StyleSheet.create({
   container: {
@@ -199,141 +208,214 @@ const styles = StyleSheet.create({
     gap: 10,
     paddingHorizontal: 20,
   },
-settingsBtn: {
-  position: "absolute",
-  top: 60,
-  right: 20,
-  width: 48,
-  height: 48,
-  zIndex: 99,
-},
-settingsIcon: {
-  width: "100%",
-  height: "100%",
-},
-  subtitle: {
-    fontFamily: "FredokaOne_400Regular",
-    color: COLORS.textDim,
-    fontSize: 13,
-    marginBottom: 2,
+
+  // ── Settings ────────────────────────────────────────────
+  settingsBtn: {
+    position: "absolute",
+    top: 60,
+    right: 20,
+    width: 48,
+    height: 48,
+    zIndex: 99,
+  },
+  settingsIcon: {
+    width: "100%",
+    height: "100%",
   },
 
-  // ── Stats ──────────────────────────────────────────────
-    statsRow: {
+  // ── Stats row ───────────────────────────────────────────
+  statsRow: {
     flexDirection: "row",
     gap: 8,
     width: "100%",
-    marginTop: 120,
+    marginTop: 160,
   },
-  statWrapper: {
-    flex: .8,           // equal width — each gets exactly 50% minus the gap
-    height: 50,
+  statCard: {
+    flex: 1,
+    height: 56,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255, 230, 0, 0.12)",
+    borderWidth: BORDER_W,
+    borderRadius: CARD_RADIUS,
+    paddingHorizontal: 10,
+    gap: 8,
   },
-  statBtnBg: {
-    position: "absolute",
-    width: "100%",
-    height: "100%",
-    borderRadius: 12,
+  statIcon: {
+    width: 32,
+    height: 32,
   },
   statTextArea: {
-    position: "absolute",
-    left: "36%",       // icon in this asset is ~35% wide
-    right: 6,
-    top: 0,
-    bottom: 0,
+    flex: 1,
     justifyContent: "center",
-    alignItems: "flex-start",
   },
   statValue: {
     fontFamily: "LuckiestGuy_400Regular",
-    color: "#FFE066",
-    fontSize: 15,
+    fontSize: 20,
     letterSpacing: 0.5,
+    textShadowColor: "rgba(0, 0, 0, 1)",
+    textShadowOffset: { width: 2, height: 2 },
+    textShadowRadius: 0,
   },
   statLabel: {
     fontFamily: "FredokaOne_400Regular",
-    color: "#ffe600",
     fontSize: 11,
-    marginTop: 1,
+    marginTop: -4,
   },
 
-  // ── Streak ─────────────────────────────────────────────
-  streakWrapper: {
-    height: 40,
+  // ── Streak ──────────────────────────────────────────────
+  streakCard: {
+    flexDirection: "row",
+    alignItems: "center",
     alignSelf: "center",
-    // width driven by content; use a fixed or percent width
-    width: "60%",
+    backgroundColor: "rgba(255, 124, 48, 0.12)",
+    borderWidth: BORDER_W,
+    borderRadius: 24,
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    gap: 8,
   },
-  streakBg: {
-    position: "absolute",
-    width: "100%",
-    height: "100%",
-    borderRadius: 20,
+  streakIcon: {
+    width: 26,
+    height: 26,
   },
   streakText: {
-    flex: 1,
-    textAlign: "center",
-    lineHeight: 40,
     fontFamily: "LuckiestGuy_400Regular",
     color: "#FF7C30",
     fontSize: 15,
     letterSpacing: 1,
+    marginTop: 4,
+    marginLeft: -4,
+    textShadowColor: "rgba(0, 0, 0, 1)",
+    textShadowOffset: { width: 2, height: 2 },
+    textShadowRadius: 0,
   },
 
-  // ── Main buttons (Challenge / Play / Classic / Rush) ───
-  mainBtnWrapper: {
+  // ── Main buttons (Challenge / Play / Classic / Rush) ────
+  mainBtn: {
     width: "100%",
     height: 72,
+    flexDirection: "row",
+    alignItems: "center",
+  backgroundColor: "rgba(10, 12, 24, 0.72)",
+    borderWidth: BORDER_W,
+    borderRadius: CARD_RADIUS,
+    paddingHorizontal: 14,
+    gap: 14,
   },
-  mainBtnBg: {
-    position: "absolute",
+  mainBtnIcon: {
+    width: 44,
+    height: 44,
+    flexShrink: 0,
+  },
+  mainBtnIconDaily: {
+    width: 62,
+    height: 62,
+    flexShrink: 0,
+  },
+  mainBtnDaily:{
     width: "100%",
-    height: "100%",
-    borderRadius: 14,
+    height: 72,
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: BORDER_W,
+    borderRadius: CARD_RADIUS,
+    paddingHorizontal: 14,
+    gap: 14,
+    backgroundColor: "rgba(244, 12, 84, 0.12)", 
   },
-  // Text lives in the right portion only — centred vertically, left-aligned inside its zone
-  mainBtnTextArea: {
-    position: "absolute",
-    left: ICON_OFFSET,   // skip the icon
-    right: 12,
-    top: 0,
-    bottom: 0,
+  mainBtnIconPlay: {
+    width: 44,
+    height: 44,
+    flexShrink: 0,
+    marginLeft: 12,
+  },
+  mainBtnPlay:{
+    width: "100%",
+    height: 72,
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: BORDER_W,
+    borderRadius: CARD_RADIUS,
+    paddingHorizontal: 14,
+    gap: 14,
+    backgroundColor: "rgba(10, 175, 248, 0.12)",
+  },
+  mainBtnClassic:{
+    width: "100%",
+    height: 72,
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: BORDER_W,
+    borderRadius: CARD_RADIUS,
+    paddingHorizontal: 14,
+    gap: 14,
+    backgroundColor: "rgba(25, 219, 108, 0.12)",
+  },
+  mainBtnIconClassic: {
+    width: 62,
+    height: 62,
+    flexShrink: 0,
+  },
+  mainBtnRush:{
+    width: "100%",
+    height: 72,
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: BORDER_W,
+    borderRadius: CARD_RADIUS,
+    paddingHorizontal: 14,
+    gap: 14,
+    backgroundColor: "rgba(254, 202, 25, 0.12)",
+  },
+  mainBtnIconRush: {
+    width: 62,
+    height: 62,
+    flexShrink: 0,
+    marginLeft: 2,
+  },
+  mainBtnText: {
+    flex: 1,
     justifyContent: "center",
-    alignItems: "flex-start",
   },
   mainBtnTitle: {
     fontFamily: "LuckiestGuy_400Regular",
     fontSize: 20,
     letterSpacing: 1.5,
-    marginLeft: 40,   // nudge back left to partially overlap the icon for better balance
+    textShadowColor: "rgba(0, 0, 0, 1)",
+    textShadowOffset: { width: 2, height: 2 },
+    textShadowRadius: 0,
+    marginTop: 2,
   },
   mainBtnSub: {
     fontFamily: "FredokaOne_400Regular",
     fontSize: 12,
-    marginTop: 2,
-    marginLeft: 40,
+    marginTop: -4,
   },
 
-  // ── All Levels (no icon, text centred across full width) ─
-  allLevelsWrapper: {
+  // ── All Levels (shorter pill) ────────────────────────────
+  allLevelsBtn: {
     width: "100%",
-    height: 42,
-  },
-  allLevelsCenterArea: {
-    position: "absolute",
-    // The AllLevels asset has a small icon on the left; skip it the same way
-    left: ICON_OFFSET,
-    right: 0,
-    top: 0,
-    bottom: 0,
-    justifyContent: "center",
+    height: 46,
+    flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(10, 175, 248, 0.12)",
+    borderRadius: CARD_RADIUS,
+    gap: 10,
+    paddingHorizontal: 14,
+  },
+  allLevelsIcon: {
+    width: 28,
+    height: 28,
   },
   allLevelsTitle: {
     fontFamily: "LuckiestGuy_400Regular",
-    color: "#0aaff8",
     fontSize: 17,
     letterSpacing: 1.5,
-    marginLeft: -35,   // nudge left to balance the small icon on the left of this asset
+    marginTop: 4,
+    textShadowColor: "rgba(0, 0, 0, 1)",
+    textShadowOffset: { width: 2, height: 2 },
+    textShadowRadius: 0,
   },
 });
