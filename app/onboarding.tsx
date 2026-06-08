@@ -9,7 +9,7 @@ import {
 } from "react-native";
 import { useRef, useState } from "react";
 import { router } from "expo-router";
-import { COLORS } from "../src/constants/theme";
+import { COLORS, TEXT} from "../src/constants/theme";
 import { markOnboardingSeen } from "../src/store/storage";
 
 const { width: SCREEN_W } = Dimensions.get("window");
@@ -163,7 +163,7 @@ function DemoObstacle() {
                   borderWidth: isObs ? 1 : 0,
                   borderColor: "rgba(0,0,0,0.3)",
                 }}>
-                  {isObs && <Text style={{ fontSize: 10, color: "#E8C99A", fontWeight: "bold" }}>3</Text>}
+                  {isObs && <Text style={{ fontSize: 10, color: "#E8C99A", ...TEXT.number }}>3</Text>}
                 </View>
               );
             })}
@@ -188,7 +188,7 @@ function DemoObstacle() {
                   borderWidth: isObs ? 1 : 0,
                   borderColor: "rgba(0,0,0,0.3)",
                 }}>
-                  {isObs && <Text style={{ fontSize: 10, color: "#E8C99A", fontWeight: "bold" }}>2</Text>}
+                  {isObs && <Text style={{ fontSize: 10, color: "#E8C99A", ...TEXT.number }}>2</Text>}
                 </View>
               );
             })}
@@ -224,7 +224,7 @@ function DemoReady() {
 const demoS = StyleSheet.create({
   container: { flexDirection: "row", alignItems: "center", gap: 12 },
   grid: {},
-  arrow: { fontSize: 24, color: COLORS.textDim, fontWeight: "bold" },
+  arrow: { fontSize: 24, color: COLORS.textDim, ...TEXT.title },
   piece: {},
 });
 
@@ -348,6 +348,7 @@ const s = StyleSheet.create({
   skipText: {
     color: COLORS.textDim,
     fontSize: 15,
+    ...TEXT.nav,
   },
   slideContent: {
     alignItems: "center",
@@ -361,6 +362,7 @@ const s = StyleSheet.create({
     fontWeight: "bold",
     textAlign: "center",
     letterSpacing: 0.5,
+    ...TEXT.title,
   },
   body: {
     color: COLORS.textDim,
@@ -368,6 +370,7 @@ const s = StyleSheet.create({
     textAlign: "center",
     lineHeight: 24,
     maxWidth: 300,
+    ...TEXT.body,
   },
   demoBox: {
     marginTop: 8,
@@ -401,10 +404,12 @@ const s = StyleSheet.create({
     color: COLORS.background,
     fontSize: 17,
     fontWeight: "bold",
+     ...TEXT.nav,
   },
   counter: {
     color: COLORS.textDim,
     fontSize: 12,
     marginTop: -12,
+    ...TEXT.label,
   },
 });

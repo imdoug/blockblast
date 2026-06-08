@@ -10,7 +10,7 @@ import { FredokaOne_400Regular } from "@expo-google-fonts/fredoka-one";
 import { COLORS } from "../src/constants/theme";
 import {
   loadHighestLevel, loadTodaysDailyResult, updateAndLoadStreak,
-  loadClassicBest, loadAllStars, hasSeenOnboarding,
+  loadClassicBest, loadRushBest, loadAllStars, hasSeenOnboarding,
 } from "../src/store/storage";
 
 // ── Icons only (no more BTN_* background images) ──────────────────────────────
@@ -31,6 +31,7 @@ export default function HomeScreen() {
   const [dailyDone, setDailyDone] = useState(false);
   const [classicBest, setClassicBest] = useState(0);
   const [totalStars, setTotalStars] = useState(0);
+  const [rushBest, setRushBest] = useState(0);
 
   const [fontsLoaded] = useFonts({
     LuckiestGuy_400Regular,
@@ -39,15 +40,23 @@ export default function HomeScreen() {
 
   useFocusEffect(useCallback(() => {
     async function load() {
-      const [level, s, daily, best, stars, onboarded] = await Promise.all([
-        loadHighestLevel(), updateAndLoadStreak(), loadTodaysDailyResult(),
-        loadClassicBest(), loadAllStars(), hasSeenOnboarding(),
+      const [level, s, daily, classic, rush, stars, onboarded] = await Promise.all([
+        loadHighestLevel(),
+        updateAndLoadStreak(),
+        loadTodaysDailyResult(),
+        loadClassicBest(),
+        loadRushBest(),
+        loadAllStars(),
+        hasSeenOnboarding(),
       ]);
+
       setHighestLevel(level);
       setStreak(s);
       setDailyDone(daily !== null);
-      setClassicBest(best);
+      setClassicBest(classic);
+      setRushBest(rush);
       setTotalStars(Object.values(stars).reduce((sum, s) => sum + s, 0));
+
       if (!onboarded) router.replace("/onboarding");
     }
     load();
@@ -73,37 +82,51 @@ export default function HomeScreen() {
       </TouchableOpacity>
 
       {/* ── Stats row ── */}
-      {(classicBest > 0 || totalStars > 0) && (
-        <View style={styles.statsRow}>
-          {/* Trophy / Classic Best */}
-          <TouchableOpacity
-            activeOpacity={0.8}
-            style={[styles.statCard, { borderColor: "#FFE600" }]}
-          >
-            <Image source={ICON_TROPHY} style={styles.statIcon} resizeMode="contain" />
-            <View style={styles.statTextArea}>
-              <Text style={[styles.statValue, { color: "#FFE600" }]} numberOfLines={1}>
-                {classicBest > 0 ? classicBest.toLocaleString() : "0"}
-              </Text>
-              <Text style={[styles.statLabel, { color: "#ffe600" }]}>classic best</Text>
-            </View>
-          </TouchableOpacity>
+      {(classicBest > 0 || rushBest > 0 || totalStars > 0) && (
+  <View style={styles.statsRow}>
+    {/* Trophy / Classic Best */}
+    <TouchableOpacity
+      activeOpacity={0.8}
+      style={[styles.statCard, { borderColor: "#FFE600" }]}
+    >
+      <Image source={ICON_TROPHY} style={styles.statIcon} resizeMode="contain" />
+      <View style={styles.statTextArea}>
+        <Text style={[styles.statValue, { color: "#FFE600" }]} numberOfLines={1}>
+          {classicBest > 0 ? classicBest.toLocaleString() : "0"}
+        </Text>
+        <Text style={[styles.statLabel, { color: "#ffe600" }]}>classic</Text>
+      </View>
+    </TouchableOpacity>
 
-          {/* Stars */}
-          <TouchableOpacity
-            activeOpacity={0.8}
-            style={[styles.statCard, { borderColor: "#FFE600" }]}
-          >
-            <Image source={ICON_STARS} style={styles.statIcon} resizeMode="contain" />
-            <View style={styles.statTextArea}>
-              <Text style={[styles.statValue, { color: "#FFE600" }]} numberOfLines={1}>
-                {totalStars} / 297
-              </Text>
-              <Text style={[styles.statLabel, { color: "#FFE600" }]}>stars earned</Text>
-            </View>
-          </TouchableOpacity>
-        </View>
-      )}
+    {/* Stars */}
+    <TouchableOpacity
+      activeOpacity={0.8}
+      style={[styles.statCard, { borderColor: "#FFE600" }]}
+    >
+      <Image source={ICON_STARS} style={styles.statIcon} resizeMode="contain" />
+      <View style={styles.statTextArea}>
+        <Text style={[styles.statValue, { color: "#FFE600" }]} numberOfLines={1}>
+          {totalStars} / 297
+        </Text>
+        <Text style={[styles.statLabel, { color: "#FFE600" }]}>stars</Text>
+      </View>
+    </TouchableOpacity>
+
+    {/* Rush Best */}
+    <TouchableOpacity
+      activeOpacity={0.8}
+      style={[styles.statCard, { borderColor: "#FFE600" }]}
+    >
+      <Image source={ICON_STARS} style={styles.statIcon} resizeMode="contain" />
+      <View style={styles.statTextArea}>
+        <Text style={[styles.statValue, { color: "#FFE600" }]} numberOfLines={1}>
+          {rushBest > 0 ? rushBest.toLocaleString() : "0"}
+        </Text>
+        <Text style={[styles.statLabel, { color: "#FFE600" }]}>rush</Text>
+      </View>
+    </TouchableOpacity>
+  </View>
+)}
 
       {/* ── Streak ── */}
       {streak > 0 && (

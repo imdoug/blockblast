@@ -6,34 +6,72 @@
 // Once completed, the result is locked until midnight UTC.
 
 import {
-  View, Text, StyleSheet, TouchableOpacity,
+  View, Text, Image, StyleSheet, TouchableOpacity,
   PanResponder, Animated, Dimensions,
 } from "react-native";
 import { useRef, useState, useEffect, useCallback } from "react";
 import { router } from "expo-router";
-import { COLORS, SIZES } from "../src/constants/theme";
+import { COLORS, SIZES, TEXT } from "../src/constants/theme";
 import { createGrid, canPlace, placePiece, clearLines, hasAnyValidMove } from "../src/game/grid";
-import { getDailySeed, randomPieceSeeded, seededRandom } from "../src/game/pieces";
+import { getDailySeed, randomPieceSeeded, seededRandom, PIECES } from "../src/game/pieces";
 import { calculateScore, countCells } from "../src/game/scoring";
 import { loadTodaysDailyResult, saveDailyResult, incrementStreakOnDailyComplete, updateAndLoadStreak } from "../src/store/storage";
 import { Grid, Piece, Tray } from "../src/types";
 
-// ─── Daily level config (fixed for all players) ───────────────────────────────
-// 20 pieces, target 3000 — challenging but achievable for most players.
-// Increases slightly each month (you can tune this).
+// ─── Daily level config ────────────────────────────────────────────────────────
 const DAILY_PIECE_COUNT = 20;
 const DAILY_TARGET      = 3000;
 
-// ─── Responsive sizing (same as level screen) ─────────────────────────────────
-const SCREEN_H   = Dimensions.get("window").height;
-const SCREEN_W   = Dimensions.get("window").width;
-const GAP        = 4;
-const AVAILABLE  = Math.min(SCREEN_H * 0.52, SCREEN_W - 32);
-const RAW_CELL   = Math.floor(AVAILABLE / 8) - GAP;
-const CELL_SIZE  = Math.max(30, Math.min(RAW_CELL, 46));
-const CELL_STEP  = CELL_SIZE + GAP;
-const CELL_R     = Math.round(CELL_SIZE * 0.22);
-const LIFT       = 110;
+// ─── Difficulty curve ─────────────────────────────────────────────────────────
+// Pieces are bucketed by complexity. The first few slots pull only from easy
+// buckets; by the end of the tray the full pool is in play.
+//
+// Complexity proxy: cell count + bounding-box span
+//   easy   — small squares, simple L shapes (≤4 cells, compact)
+//   medium — straight bars, T-shapes (4–5 cells, moderate span)
+//   hard   — S/Z, long bars, irregular 5-cell shapes
+//
+// pieceIndex → difficulty tier (0 = easy only, 1 = easy+medium, 2 = all)
+function difficultyTier(pieceIndex: number): 0 | 1 | 2 {
+  if (pieceIndex < 6)  return 0; // first 6 pieces: easy only
+  if (pieceIndex < 12) return 1; // next 6: easy + medium
+  return 2;                       // remainder: full pool
+}
+
+function classifyPiece(piece: Piece): "easy" | "medium" | "hard" {
+  const cells = piece.shape.flat().filter(Boolean).length;
+  const rows  = piece.shape.length;
+  const cols  = piece.shape[0].length;
+  const span  = Math.max(rows, cols);
+  if (cells <= 3 || (cells === 4 && span <= 2)) return "easy";
+  if (cells === 4 || (cells === 5 && span <= 3)) return "medium";
+  return "hard";
+}
+
+function pickPieceForTier(rng: () => number, tier: 0 | 1 | 2): Piece {
+  const allowed = (p: Piece) => {
+    const c = classifyPiece(p);
+    if (tier === 0) return c === "easy";
+    if (tier === 1) return c === "easy" || c === "medium";
+    return true;
+  };
+  const pool = PIECES.filter(allowed);
+  const src  = pool.length > 0 ? pool : PIECES;
+  const idx  = Math.floor(rng() * src.length);
+  return { ...src[idx], color: src[idx].color };
+}
+
+// ─── Responsive sizing ─────────────────────────────────────────────────────────
+const SCREEN_H  = Dimensions.get("window").height;
+const SCREEN_W  = Dimensions.get("window").width;
+const GAP       = 4;
+const AVAILABLE = Math.min(SCREEN_H * 0.52, SCREEN_W - 32);
+const RAW_CELL  = Math.floor(AVAILABLE / 8) - GAP;
+const CELL_SIZE = Math.max(30, Math.min(RAW_CELL, 46));
+const CELL_STEP = CELL_SIZE + GAP;
+const CELL_R    = Math.round(CELL_SIZE * 0.22);
+const LIFT      = 110;
+
 type Phase = "playing" | "won" | "failed" | "stuck" | "already_done";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -53,13 +91,12 @@ function clamp(row: number, col: number, piece: Piece) {
 }
 
 function getStars(score: number): number {
-  if (score >= DAILY_TARGET * 2) return 3;
+  if (score >= DAILY_TARGET * 2)   return 3;
   if (score >= DAILY_TARGET * 1.5) return 2;
-  if (score >= DAILY_TARGET) return 1;
+  if (score >= DAILY_TARGET)       return 1;
   return 0;
 }
 
-// Format today's date nicely for display: "Sunday, May 25"
 function formatToday(): string {
   return new Date().toLocaleDateString("en-US", {
     weekday: "long", month: "long", day: "numeric",
@@ -127,7 +164,7 @@ function ScoreBar({ score, piecesRemaining }: { score: number; piecesRemaining: 
     inputRange: [0, 0.5, 1],
     outputRange: [COLORS.danger, COLORS.accent, COLORS.primary],
   });
-  const isLow = piecesRemaining <= 5;
+  const isLow     = piecesRemaining <= 5;
   const isVeryLow = piecesRemaining <= 2;
 
   return (
@@ -162,40 +199,38 @@ function ScoreBar({ score, piecesRemaining }: { score: number; piecesRemaining: 
 const sbS = StyleSheet.create({
   container: { width: "100%", gap: 5, marginBottom: 10 },
   row: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  dailyLabel: { color: COLORS.primary, fontSize: 11, fontWeight: "bold", letterSpacing: 2 },
-  dateText: { color: COLORS.textDim, fontSize: 12, marginTop: 2 },
+  dailyLabel: { color: COLORS.primary, fontSize: 11, ...TEXT.badge },
+  dateText:   { color: COLORS.textDim, fontSize: 12, marginTop: 2, ...TEXT.body },
   counter: {
     backgroundColor: "rgba(255,255,255,0.08)", borderRadius: 10,
     paddingHorizontal: 14, paddingVertical: 5, alignItems: "center",
     borderWidth: 1, borderColor: "rgba(255,255,255,0.1)", minWidth: 64,
   },
-  cLow: { borderColor: COLORS.accent, backgroundColor: "rgba(255,230,109,0.08)" },
+  cLow:     { borderColor: COLORS.accent, backgroundColor: "rgba(255,230,109,0.08)" },
   cVeryLow: { borderColor: COLORS.danger, backgroundColor: "rgba(255,107,107,0.1)" },
-  cNum: { color: COLORS.text, fontSize: 20, fontWeight: "bold", lineHeight: 22 },
-  cLabel: { color: COLORS.textDim, fontSize: 9, letterSpacing: 1 },
+  cNum:   { color: COLORS.text,    fontSize: 20, lineHeight: 22, ...TEXT.number },
+  cLabel: { color: COLORS.textDim, fontSize: 9,  ...TEXT.label },
   track: { height: 10, backgroundColor: "rgba(255,255,255,0.08)", borderRadius: 5, overflow: "hidden" },
-  fill: { height: "100%", borderRadius: 5 },
-  tick: { position: "absolute", right: 0, top: 0, bottom: 0, width: 2, backgroundColor: "rgba(255,255,255,0.3)" },
-  scoreText: { color: COLORS.text, fontSize: 15, fontWeight: "bold" },
-  targetText: { color: COLORS.textDim, fontSize: 12, fontWeight: "normal" },
+  fill:  { height: "100%", borderRadius: 5 },
+  tick:  { position: "absolute", right: 0, top: 0, bottom: 0, width: 2, backgroundColor: "rgba(255,255,255,0.3)" },
+  scoreText:  { color: COLORS.text,    fontSize: 15, ...TEXT.number },
+  targetText: { color: COLORS.textDim, fontSize: 12, ...TEXT.body },
 });
 
 // ─── Already Done Screen ──────────────────────────────────────────────────────
 
 function AlreadyDoneScreen({ score, stars }: { score: number; stars: number }) {
-  // Time until midnight UTC
-  const now = new Date();
+  const now      = new Date();
   const midnight = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1));
-  const diff = midnight.getTime() - now.getTime();
-  const hours = Math.floor(diff / 3_600_000);
-  const mins = Math.floor((diff % 3_600_000) / 60_000);
+  const diff     = midnight.getTime() - now.getTime();
+  const hours    = Math.floor(diff / 3_600_000);
+  const mins     = Math.floor((diff % 3_600_000) / 60_000);
 
   return (
     <View style={adS.container}>
       <Text style={adS.icon}>✅</Text>
       <Text style={adS.title}>Today's done!</Text>
       <Text style={adS.date}>{formatToday()}</Text>
-
       <View style={adS.scoreBox}>
         <Text style={adS.scoreLabel}>YOUR SCORE</Text>
         <Text style={adS.scoreNum}>{score.toLocaleString()}</Text>
@@ -205,12 +240,10 @@ function AlreadyDoneScreen({ score, stars }: { score: number; stars: number }) {
           ))}
         </View>
       </View>
-
       <View style={adS.countdownBox}>
         <Text style={adS.countdownLabel}>Next challenge in</Text>
         <Text style={adS.countdown}>{hours}h {mins}m</Text>
       </View>
-
       <TouchableOpacity style={adS.btn} onPress={() => router.back()}>
         <Text style={adS.btnText}>← Back</Text>
       </TouchableOpacity>
@@ -224,19 +257,19 @@ const adS = StyleSheet.create({
     alignItems: "center", justifyContent: "center",
     padding: 32, gap: 16,
   },
-  icon: { fontSize: 56 },
-  title: { color: COLORS.text, fontSize: 28, fontWeight: "bold" },
-  date: { color: COLORS.textDim, fontSize: 14 },
+  icon:  { fontSize: 56 },
+  title: { color: COLORS.text,    fontSize: 28, ...TEXT.title },
+  date:  { color: COLORS.textDim, fontSize: 14, ...TEXT.body },
   scoreBox: {
     backgroundColor: "rgba(255,255,255,0.05)", borderRadius: 16,
     paddingHorizontal: 40, paddingVertical: 20,
     alignItems: "center", gap: 6, width: "100%",
     borderWidth: 1, borderColor: "rgba(255,255,255,0.07)",
   },
-  scoreLabel: { color: COLORS.textDim, fontSize: 11, letterSpacing: 3 },
-  scoreNum: { color: COLORS.primary, fontSize: 48, fontWeight: "bold" },
-  starsRow: { flexDirection: "row", gap: 8 },
-  star: { fontSize: 28 },
+  scoreLabel: { color: COLORS.textDim, fontSize: 11, letterSpacing: 3, ...TEXT.body },
+  scoreNum:   { color: COLORS.primary, fontSize: 48, ...TEXT.score },
+  starsRow:   { flexDirection: "row", gap: 8 },
+  star:    { fontSize: 28 },
   starDim: { opacity: 0.2 },
   countdownBox: {
     backgroundColor: "rgba(78,205,196,0.08)", borderRadius: 14,
@@ -244,10 +277,10 @@ const adS = StyleSheet.create({
     alignItems: "center", gap: 4,
     borderWidth: 1, borderColor: "rgba(78,205,196,0.2)",
   },
-  countdownLabel: { color: COLORS.textDim, fontSize: 12 },
-  countdown: { color: COLORS.primary, fontSize: 32, fontWeight: "bold" },
-  btn: { marginTop: 8 },
-  btnText: { color: COLORS.textDim, fontSize: 16 },
+  countdownLabel: { color: COLORS.textDim, fontSize: 12, ...TEXT.body },
+  countdown: { color: COLORS.primary, fontSize: 32, ...TEXT.number },
+  btn:     { marginTop: 8 },
+  btnText: { color: COLORS.textDim, fontSize: 16, ...TEXT.nav },
 });
 
 // ─── Results Overlay ──────────────────────────────────────────────────────────
@@ -258,8 +291,8 @@ function ResultsOverlay({ phase, score, onHome }: {
   const stars = getStars(score);
   const isWon = phase === "won";
 
-  // Generate shareable text — copy to clipboard (manual for now)
-  const shareText = `📅 BlockBlast Daily ${formatToday()}\n` +
+  const shareText =
+    `📅 BlockBlast Daily ${formatToday()}\n` +
     `${"⭐".repeat(stars)}${"☆".repeat(3 - stars)}\n` +
     `Score: ${score.toLocaleString()}`;
 
@@ -292,7 +325,6 @@ function ResultsOverlay({ phase, score, onHome }: {
           )}
         </View>
 
-        {/* Share result (copy text) */}
         <View style={roS.shareBox}>
           <Text style={roS.shareText}>{shareText}</Text>
         </View>
@@ -321,41 +353,44 @@ const roS = StyleSheet.create({
     shadowColor: "#000", shadowOpacity: 0.6,
     shadowRadius: 24, shadowOffset: { width: 0, height: 12 },
   },
-  icon: { fontSize: 44 },
-  title: { color: COLORS.text, fontSize: 22, fontWeight: "bold", textAlign: "center" },
-  date: { color: COLORS.textDim, fontSize: 13 },
+  icon:  { fontSize: 44 },
+  title: { color: COLORS.text, fontSize: 22, textAlign: "center", ...TEXT.title },
+  date:  { color: COLORS.textDim, fontSize: 13, ...TEXT.body },
   starsRow: { flexDirection: "row", gap: 8 },
-  star: { fontSize: 28 },
+  star:    { fontSize: 28 },
   starDim: { opacity: 0.2 },
   scoreBox: {
     alignItems: "center", backgroundColor: "rgba(255,255,255,0.05)",
     borderRadius: 14, paddingHorizontal: 28, paddingVertical: 12,
     width: "100%", gap: 2,
   },
-  scoreLabel: { color: COLORS.textDim, fontSize: 11, letterSpacing: 3 },
-  scoreNum: { fontSize: 40, fontWeight: "bold" },
-  gapText: { color: COLORS.textDim, fontSize: 12, marginTop: 4 },
+  scoreLabel: { color: COLORS.textDim, fontSize: 11, letterSpacing: 3, ...TEXT.body },
+  scoreNum:   { fontSize: 40, ...TEXT.score },
+  gapText:    { color: COLORS.textDim, fontSize: 12, marginTop: 4, ...TEXT.body },
   shareBox: {
     backgroundColor: "rgba(255,255,255,0.04)", borderRadius: 10,
     padding: 12, width: "100%",
     borderWidth: 1, borderColor: "rgba(255,255,255,0.08)",
   },
-  shareText: { color: COLORS.textDim, fontSize: 13, textAlign: "center", lineHeight: 20 },
-  comeBack: { color: COLORS.primary, fontSize: 13, textAlign: "center" },
-  btn: { marginTop: 4 },
-  btnText: { color: COLORS.textDim, fontSize: 15 },
+  shareText: { color: COLORS.textDim, fontSize: 13, textAlign: "center", lineHeight: 20, ...TEXT.body },
+  comeBack:  { color: COLORS.primary, fontSize: 13, textAlign: "center", ...TEXT.body },
+  btn:     { marginTop: 4 },
+  btnText: { color: COLORS.textDim, fontSize: 15, ...TEXT.nav },
 });
 
 // ─── Daily Game Screen ────────────────────────────────────────────────────────
 
 export default function DailyScreen() {
   const seed = getDailySeed();
-  const rng = seededRandom(seed);
+  const rng  = seededRandom(seed);
 
-  // Pre-generate ALL pieces for today upfront from the seed.
-  // This ensures every player gets the same sequence regardless of device speed.
+  // Pre-generate ALL pieces upfront using the difficulty curve.
+  // pieceIndex drives the tier; seeded RNG drives the pick within that tier.
+  // Same seed + same curve = same sequence on every device, every day.
   const dailyPieces = useRef<Piece[]>(
-    Array.from({ length: DAILY_PIECE_COUNT + 9 }, () => randomPieceSeeded(rng))
+    Array.from({ length: DAILY_PIECE_COUNT + 9 }, (_, i) =>
+      pickPieceForTier(rng, difficultyTier(i))
+    )
   ).current;
   const pieceIndex = useRef(0);
 
@@ -378,19 +413,18 @@ export default function DailyScreen() {
   const [alreadyDone, setAlreadyDone] = useState<{ score: number; stars: number } | null>(null);
   const [streak, setStreak] = useState(0);
 
-  const gridOrigin = useRef<{ x: number; y: number } | null>(null);
+  const gridOrigin      = useRef<{ x: number; y: number } | null>(null);
   const containerOrigin = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
-  const dragPosition = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
+  const dragPosition    = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
 
-  const gridRef = useRef(grid); gridRef.current = grid;
-  const trayRef = useRef(tray); trayRef.current = tray;
-  const selectedRef = useRef(selected); selectedRef.current = selected;
-  const scoreRef = useRef(score); scoreRef.current = score;
-  const comboRef = useRef(combo); comboRef.current = combo;
-  const piecesRef = useRef(piecesRemaining); piecesRef.current = piecesRemaining;
-  const phaseRef = useRef(phase); phaseRef.current = phase;
+  const gridRef     = useRef(grid);            gridRef.current     = grid;
+  const trayRef     = useRef(tray);            trayRef.current     = tray;
+  const selectedRef = useRef(selected);        selectedRef.current = selected;
+  const scoreRef    = useRef(score);           scoreRef.current    = score;
+  const comboRef    = useRef(combo);           comboRef.current    = combo;
+  const piecesRef   = useRef(piecesRemaining); piecesRef.current   = piecesRemaining;
+  const phaseRef    = useRef(phase);           phaseRef.current    = phase;
 
-  // Check if already completed today
   useEffect(() => {
     async function check() {
       const result = await loadTodaysDailyResult();
@@ -401,36 +435,40 @@ export default function DailyScreen() {
     check();
   }, []);
 
-  // Save result when phase changes to terminal
+  // Save result when phase reaches a terminal state.
+  // Streak only increments on "won" — failed and stuck don't count.
   useEffect(() => {
     if (phase === "won" || phase === "failed" || phase === "stuck") {
       const stars = getStars(score);
       saveDailyResult(score, stars);
-      // Only increment streak when user actually completes the daily challenge
-      incrementStreakOnDailyComplete();
+      if (phase === "won") {
+        incrementStreakOnDailyComplete();
+      }
     }
   }, [phase]);
 
   const activePiece = tray[selected];
 
-  const ghostCells = new Set<string>();
+  const ghostCells     = new Set<string>();
   const wouldClearRows = new Set<number>();
   const wouldClearCols = new Set<number>();
-  if (ghost && activePiece && ghostValid) {
+  if (ghost && activePiece) {
     for (let r = 0; r < activePiece.shape.length; r++)
       for (let c = 0; c < activePiece.shape[r].length; c++)
         if (activePiece.shape[r][c]) ghostCells.add(`${ghost.row + r},${ghost.col + c}`);
-    const sim = placePiece(grid, activePiece, ghost.row, ghost.col);
-    for (let r = 0; r < 8; r++) if (sim[r].every(c => c !== null)) wouldClearRows.add(r);
-    for (let c = 0; c < 8; c++) if (sim.every(r => r[c] !== null)) wouldClearCols.add(c);
+    if (ghostValid) {
+      const sim = placePiece(grid, activePiece, ghost.row, ghost.col);
+      for (let r = 0; r < 8; r++) if (sim[r].every(c => c !== null)) wouldClearRows.add(r);
+      for (let c = 0; c < 8; c++) if (sim.every(r => r[c] !== null)) wouldClearCols.add(c);
+    }
   }
 
   const dropAt = useCallback((row: number, col: number, pieceOverride?: Piece, trayIdx?: number) => {
     if (phaseRef.current !== "playing") return;
     const curGrid = gridRef.current;
     const curTray = trayRef.current;
-    const curSel = trayIdx ?? selectedRef.current;
-    const piece = pieceOverride ?? curTray[curSel];
+    const curSel  = trayIdx ?? selectedRef.current;
+    const piece   = pieceOverride ?? curTray[curSel];
     if (!piece || !canPlace(curGrid, piece, row, col)) return;
 
     const placed = placePiece(curGrid, piece, row, col);
@@ -439,7 +477,7 @@ export default function DailyScreen() {
 
     const newTray = [...curTray] as Tray;
     newTray[curSel] = null;
-    const allUsed = newTray.every(p => p === null);
+    const allUsed   = newTray.every(p => p === null);
     const finalTray: Tray = allUsed
       ? [nextPiece(), nextPiece(), nextPiece()]
       : newTray;
@@ -472,10 +510,10 @@ export default function DailyScreen() {
 
   const panResponders = useRef([0, 1, 2].map(idx =>
     PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
+      onStartShouldSetPanResponder:        () => true,
       onStartShouldSetPanResponderCapture: () => true,
-      onMoveShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponderCapture: () => true,
+      onMoveShouldSetPanResponder:         () => true,
+      onMoveShouldSetPanResponderCapture:  () => true,
 
       onPanResponderGrant: (e) => {
         if (phaseRef.current !== "playing") return;
@@ -525,7 +563,6 @@ export default function DailyScreen() {
     dropAt(c.row, c.col);
   }
 
-  // Already done today — show summary
   if (alreadyDone) {
     return <AlreadyDoneScreen score={alreadyDone.score} stars={alreadyDone.stars} />;
   }
@@ -555,35 +592,57 @@ export default function DailyScreen() {
 
       <ScoreBar score={score} piecesRemaining={piecesRemaining} />
 
-      <View
-        style={styles.gridContainer}
-        onLayout={e => e.target.measure((_x, _y, _w, _h, px, py) => {
-          gridOrigin.current = { x: px + 8, y: py + 8 };
-        })}
-      >
-        {grid.map((row, r) => (
-          <View key={r} style={styles.row}>
-            {row.map((cell, c) => {
-              const isGhost = ghostCells.has(`${r},${c}`);
-              const willClear = wouldClearRows.has(r) || wouldClearCols.has(c);
-              const color = cell !== null ? COLORS.pieces[cell] : null;
-              const gc = activePiece ? COLORS.pieces[activePiece.color] : null;
-              return (
-                <TouchableOpacity
-                  key={c} activeOpacity={0.8}
-                  onPress={() => handleCellTap(r, c)}
-                  style={[
-                    styles.cell,
-                    cell !== null && { backgroundColor: color!.fill, shadowColor: color!.fill, shadowOpacity: 0.4, shadowRadius: 3, shadowOffset: { width: 0, height: 2 } },
-                    isGhost && ghostValid && { backgroundColor: gc!.fill, opacity: 0.55, borderWidth: 2, borderColor: gc!.fill },
-                    isGhost && !ghostValid && { backgroundColor: COLORS.danger, opacity: 0.4 },
-                    !isGhost && willClear && cell === null && { backgroundColor: COLORS.accent, opacity: 0.2 },
-                  ]}
-                />
-              );
-            })}
+      <View style={styles.gridWrapper}>
+        <View
+          style={styles.gridContainer}
+          onLayout={e => e.target.measure((_x, _y, _w, _h, px, py) => {
+            gridOrigin.current = { x: px + 8, y: py + 8 };
+          })}
+        >
+          {grid.map((row, r) => (
+            <View key={r} style={styles.row}>
+              {row.map((cell, c) => {
+                const willClear = wouldClearRows.has(r) || wouldClearCols.has(c);
+                const color = cell !== null ? COLORS.pieces[cell] : null;
+                return (
+                  <TouchableOpacity key={c} activeOpacity={0.8}
+                    onPress={() => handleCellTap(r, c)}
+                    style={[
+                      styles.cell,
+                      cell !== null && { backgroundColor: color!.fill, shadowColor: color!.fill, shadowOpacity: 0.4, shadowRadius: 3, shadowOffset: { width: 0, height: 2 } },
+                      willClear && cell === null && { backgroundColor: COLORS.accent, opacity: 0.2 },
+                    ]}
+                  />
+                );
+              })}
+            </View>
+          ))}
+        </View>
+
+        {/* Placement overlay */}
+        {isDragging && ghost && activePiece && (
+          <View style={styles.placementOverlay} pointerEvents="none">
+            {Array.from({ length: 8 }, (_, r) => (
+              <View key={r} style={styles.row}>
+                {Array.from({ length: 8 }, (_, c) => {
+                  const isGhost = ghostCells.has(`${r},${c}`);
+                  const gc = COLORS.pieces[activePiece.color];
+                  if (isGhost && ghostValid) {
+                    return <View key={c} style={[styles.overlayCell, { backgroundColor: gc.fill, opacity: 1, borderWidth: 2, borderColor: "rgba(255,255,255,0.5)" }]} />;
+                  }
+                  if (isGhost && !ghostValid) {
+                    return (
+                      <View key={c} style={[styles.overlayCell, { backgroundColor: gc.fill, opacity: 0.85, borderWidth: 2, borderColor: COLORS.danger }]}>
+                        <Image source={require("../assets/pieces/block.png")} style={styles.blockOverlay} resizeMode="cover" />
+                      </View>
+                    );
+                  }
+                  return <View key={c} style={styles.overlayCell} />;
+                })}
+              </View>
+            ))}
           </View>
-        ))}
+        )}
       </View>
 
       <Text style={styles.hint}>
@@ -604,8 +663,6 @@ export default function DailyScreen() {
         )}
       </View>
 
-      {isDragging && activePiece && <DragShadow piece={activePiece} position={dragPosition} />}
-
       {phase !== "playing" && (
         <ResultsOverlay phase={phase} score={score} onHome={() => router.back()} />
       )}
@@ -622,29 +679,43 @@ const styles = StyleSheet.create({
     flexDirection: "row", alignItems: "center",
     width: "100%", height: 44, marginBottom: 4, gap: 10,
   },
-  back: { color: COLORS.textDim, fontSize: 16 },
+  back: { color: COLORS.textDim, fontSize: 16, ...TEXT.nav },
   streakBadge: {
     backgroundColor: "rgba(255,107,107,0.12)", borderRadius: 8,
     paddingHorizontal: 10, paddingVertical: 3,
     borderWidth: 1, borderColor: "rgba(255,107,107,0.3)",
   },
-  streakText: { color: "#FF6B6B", fontSize: 12, fontWeight: "bold" },
+  streakText: { color: "#FF6B6B", fontSize: 12, ...TEXT.body },
   comboBadge: {
     backgroundColor: "rgba(255,230,109,0.12)", borderRadius: 8,
     paddingHorizontal: 10, paddingVertical: 3,
     borderWidth: 1, borderColor: COLORS.accent,
   },
-  comboText: { color: COLORS.accent, fontSize: 12, fontWeight: "bold" },
+  comboText: { color: COLORS.accent, fontSize: 12, ...TEXT.badge },
+  gridWrapper: { position: "relative" as any },
   gridContainer: {
     backgroundColor: "rgba(255,255,255,0.05)",
     borderRadius: 14, padding: 8, gap: GAP,
   },
-  row: { flexDirection: "row", gap: GAP },
+  placementOverlay: {
+    position: "absolute" as any,
+    top: 0, left: 0, right: 0, bottom: 0,
+    padding: 8, gap: GAP, borderRadius: 14, backgroundColor: "transparent",
+  },
+  overlayCell: {
+    width: CELL_SIZE, height: CELL_SIZE,
+    borderRadius: CELL_R, backgroundColor: "transparent",
+  },
+  blockOverlay: {
+    position: "absolute" as any, top: 0, left: 0, right: 0, bottom: 0,
+    width: CELL_SIZE, height: CELL_SIZE, borderRadius: CELL_R, opacity: 0.85,
+  },
+  row:  { flexDirection: "row", gap: GAP },
   cell: {
     width: CELL_SIZE, height: CELL_SIZE,
     borderRadius: CELL_R, backgroundColor: COLORS.cellEmpty,
   },
-  hint: { color: COLORS.textDim, fontSize: 11, marginTop: 8, marginBottom: 4 },
+  hint: { color: COLORS.textDim, fontSize: 11, marginTop: 8, marginBottom: 4, ...TEXT.hint },
   tray: {
     flexDirection: "row", gap: 10, marginTop: 8,
     backgroundColor: "rgba(255,255,255,0.05)",

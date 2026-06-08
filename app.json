@@ -14,6 +14,7 @@
       "supportsTablet": false,
       "bundleIdentifier": "com.makewondr.bloxburst",
       "buildNumber": "1",
+      "deploymentTarget": "26.4",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
@@ -33,7 +34,10 @@
         "react-native-google-mobile-ads",
         {
           "androidAppId": "ca-app-pub-3940256099942544~3347511713",
-          "iosAppId": "ca-app-pub-4649688048415899~5057012442"
+          "iosAppId": "ca-app-pub-4649688048415899~5057012442",
+          "ios": {
+            "deploymentTarget": "16.0"
+          }
         }
       ],
       [
@@ -44,7 +48,8 @@
       ],
       "expo-asset",
       "expo-font",
-      "expo-splash-screen"
+      "expo-splash-screen",
+      "expo-build-properties"
     ],
     "updates": {
       "enabled": false

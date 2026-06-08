@@ -35,6 +35,21 @@ export const CELL_SIZE = SIZES.cell;
 export const CELL_GAP  = SIZES.cellGap;
 
 export const FONTS = {
-  display: 'Fredoka One',
-  body:    'Nunito',
+  display:   "LuckiestGuy_400Regular",
+  body:    "FredokaOne_400Regular",
 };
+
+export const TEXT = {
+  // LuckiestGuy — titles, scores, numbers, buttons, badges
+  title:  { fontFamily: FONTS.display } as const,
+  score:  { fontFamily: FONTS.display, letterSpacing: 2 } as const,
+  number: { fontFamily: FONTS.display } as const,
+  badge:  { fontFamily: FONTS.display, letterSpacing: 1 } as const,
+  button: { fontFamily: FONTS.display, letterSpacing: 1 } as const,
+
+  // FredokaOne — body, labels, hints, nav, secondary
+  body:   { fontFamily: FONTS.body } as const,
+  label:  { fontFamily: FONTS.body, letterSpacing: 1 } as const,
+  hint:   { fontFamily: FONTS.body } as const,
+  nav:    { fontFamily: FONTS.body } as const,
+} as const;

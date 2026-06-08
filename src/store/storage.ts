@@ -19,6 +19,7 @@ const KEYS = {
   HAPTICS_ENABLED:   "bb_haptics_enabled",
   SOUND_ENABLED:     "bb_sound_enabled",
   ONBOARDING_SEEN:   "bb_onboarding_seen",
+  RUSH_BEST:         "bb_rush_best",
 } as const;
 
 // ─── Level Progress ───────────────────────────────────────────────────────────
@@ -214,5 +215,24 @@ export async function clearAllData(): Promise<void> {
   try {
     await AsyncStorage.multiRemove(Object.values(KEYS));
     console.log("[Storage] All data cleared");
+  } catch {}
+}
+// ─── Rush Best ────────────────────────────────────────────────────────────────
+
+export async function loadRushBest(): Promise<number> {
+  try {
+    const val = await AsyncStorage.getItem(KEYS.RUSH_BEST);
+    return val ? parseInt(val, 10) : 0;
+  } catch {
+    return 0;
+  }
+}
+
+export async function saveRushBest(score: number): Promise<void> {
+  try {
+    const current = await loadRushBest();
+    if (score > current) {
+      await AsyncStorage.setItem(KEYS.RUSH_BEST, String(score));
+    }
   } catch {}
 }

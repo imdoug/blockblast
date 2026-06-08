@@ -1,7 +1,7 @@
 // app/game.tsx — Classic endless mode with personal best tracking
 
 import {
-  View, Text, StyleSheet, TouchableOpacity, Alert,
+  View, Text, Image, StyleSheet, TouchableOpacity, Alert,
   PanResponder, Animated, Dimensions,
   GestureResponderEvent,
 } from "react-native";
@@ -33,8 +33,8 @@ import { Grid, Piece, Tray } from "../src/types";
 const SCREEN_H  = Dimensions.get("window").height;
 const SCREEN_W  = Dimensions.get("window").width;
 const GAP       = 4;
-const AVAILABLE = Math.min(SCREEN_H * 0.52, SCREEN_W - 32);
-const CELL_SIZE = Math.max(30, Math.min(Math.floor(AVAILABLE / 8) - GAP, 46));
+const AVAILABLE = Math.min(SCREEN_H * 0.5, SCREEN_W - 32);
+const CELL_SIZE = Math.max(30, Math.min(Math.floor(AVAILABLE / 8) - GAP, 44));
 const CELL_STEP = CELL_SIZE + GAP;
 const CELL_R    = Math.round(CELL_SIZE * 0.22);
 const LIFT      = 60;
@@ -77,21 +77,15 @@ function MiniPiece({ piece }: { piece: Piece }) {
   );
 }
 
-// Placement overlay handles ghost — no floating DragShadow
-
 // ─── Game Over screen ─────────────────────────────────────────────────────────
 function GameOverScreen({
   score, best, isNewRecord, piecesPlaced, linesCleared, bestCombo,
-  onReplay, onHome,
+  onReplay, onHome, onWatchAd,
 }: {
   score: number; best: number; isNewRecord: boolean;
   piecesPlaced: number; linesCleared: number; bestCombo: number;
   onReplay: () => void; onHome: () => void; onWatchAd: () => void;
 }) {
-  function onWatchAd(event: GestureResponderEvent): void {
-    throw new Error("Function not implemented.");
-  }
-
   return (
     <View style={goS.overlay}>
       <View style={goS.modal}>
@@ -177,12 +171,18 @@ const goS = StyleSheet.create({
   icon: { fontSize: 48 },
   recordBadge: {
     backgroundColor: COLORS.accent, color: COLORS.background,
-    fontWeight: "bold", fontSize: 13, letterSpacing: 2,
+    fontFamily: "LuckiestGuy_400Regular", fontSize: 13, letterSpacing: 2,
     paddingHorizontal: 14, paddingVertical: 4, borderRadius: 20,
     marginTop: -4,
   },
-  title: { color: COLORS.text, fontSize: 24, fontWeight: "bold" },
-  subtitle: { color: COLORS.textDim, fontSize: 13, marginTop: -4 },
+  title: {
+    color: COLORS.text, fontSize: 26,
+    fontFamily: "LuckiestGuy_400Regular", letterSpacing: 1,
+  },
+  subtitle: {
+    color: COLORS.textDim, fontSize: 13,
+    fontFamily: "FredokaOne_400Regular", marginTop: -4,
+  },
   scoreBox: {
     alignItems: "center", backgroundColor: "rgba(255,255,255,0.05)",
     borderRadius: 14, paddingHorizontal: 40, paddingVertical: 12,
@@ -192,8 +192,14 @@ const goS = StyleSheet.create({
     backgroundColor: "rgba(255,230,109,0.1)",
     borderWidth: 1.5, borderColor: "rgba(255,230,109,0.4)",
   },
-  scoreLabel: { color: COLORS.textDim, fontSize: 11, letterSpacing: 3 },
-  scoreNum: { color: COLORS.primary, fontSize: 48, fontWeight: "bold" },
+  scoreLabel: {
+    color: COLORS.textDim, fontSize: 11,
+    fontFamily: "FredokaOne_400Regular", letterSpacing: 3,
+  },
+  scoreNum: {
+    color: COLORS.primary, fontSize: 52,
+    fontFamily: "LuckiestGuy_400Regular", letterSpacing: 2,
+  },
   scoreNumRecord: { color: COLORS.accent },
   bestRow: {
     flexDirection: "row", alignItems: "baseline", gap: 6,
@@ -201,26 +207,50 @@ const goS = StyleSheet.create({
     borderRadius: 10, paddingHorizontal: 16, paddingVertical: 8,
     width: "100%",
   },
-  bestLabel: { color: COLORS.textDim, fontSize: 12 },
-  bestNum: { color: COLORS.text, fontSize: 18, fontWeight: "bold" },
-  bestDiff: { color: COLORS.danger, fontSize: 12, flex: 1, textAlign: "right" },
+  bestLabel: {
+    color: COLORS.textDim, fontSize: 12,
+    fontFamily: "FredokaOne_400Regular",
+  },
+  bestNum: {
+    color: COLORS.text, fontSize: 18,
+    fontFamily: "LuckiestGuy_400Regular",
+  },
+  bestDiff: {
+    color: COLORS.danger, fontSize: 12,
+    fontFamily: "FredokaOne_400Regular", flex: 1, textAlign: "right",
+  },
   statsRow: { flexDirection: "row", gap: 24 },
   stat: { alignItems: "center" },
-  statNum: { color: COLORS.text, fontSize: 20, fontWeight: "bold" },
-  statLabel: { color: COLORS.textDim, fontSize: 10 },
+  statNum: {
+    color: COLORS.text, fontSize: 22,
+    fontFamily: "LuckiestGuy_400Regular",
+  },
+  statLabel: {
+    color: COLORS.textDim, fontSize: 11,
+    fontFamily: "FredokaOne_400Regular",
+  },
   btnPrimary: {
     backgroundColor: COLORS.primary, borderRadius: 14,
     paddingHorizontal: 40, paddingVertical: 14,
     width: "100%", alignItems: "center", marginTop: 4,
   },
-  btnPrimaryText: { color: COLORS.background, fontSize: 16, fontWeight: "bold" },
-  homeLink: { color: COLORS.textDim, fontSize: 14 },
+  btnPrimaryText: {
+    color: COLORS.background, fontSize: 17,
+    fontFamily: "LuckiestGuy_400Regular", letterSpacing: 1,
+  },
+  homeLink: {
+    color: COLORS.textDim, fontSize: 14,
+    fontFamily: "FredokaOne_400Regular",
+  },
   btnAd: {
     backgroundColor: COLORS.accent, borderRadius: 14,
     paddingHorizontal: 24, paddingVertical: 13,
     width: "100%", alignItems: "center",
   },
-  btnAdText: { color: COLORS.background, fontSize: 14, fontWeight: "bold" },
+  btnAdText: {
+    color: COLORS.background, fontSize: 14,
+    fontFamily: "FredokaOne_400Regular", fontWeight: "bold" as any,
+  },
 });
 
 // ─── Classic Game Screen ──────────────────────────────────────────────────────
@@ -243,20 +273,17 @@ export default function GameScreen() {
   const [piecesPlaced, setPiecesPlaced] = useState(0);
   const [gameOver, setGameOver] = useState(false);
 
-  // Personal best
   const [personalBest, setPersonalBest] = useState(0);
   const [isNewRecord, setIsNewRecord] = useState(false);
 
-  // Ghost
   const [ghost, setGhost] = useState<{ row: number; col: number } | null>(null);
   const [ghostValid, setGhostValid] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
 
-  // Row/col clear flash animation
   const [flashRows, setFlashRows] = useState<Set<number>>(new Set());
   const [flashCols, setFlashCols] = useState<Set<number>>(new Set());
   const [linesJustCleared, setLinesJustCleared] = useState(false);
-  const flashColorRef = useRef<string>(COLORS.primary); // ref = synchronous, no stale state
+  const flashColorRef = useRef<string>(COLORS.primary);
   const glowAnim  = useRef(new Animated.Value(0)).current;
   const [comboFloatText,    setComboFloatText]    = useState("");
   const [comboFloatVisible, setComboFloatVisible] = useState(false);
@@ -264,12 +291,10 @@ export default function GameScreen() {
   const comboFloatY       = useRef(new Animated.Value(0)).current;
   const comboFloatOpacity = useRef(new Animated.Value(1)).current;
 
-  // Recent indices for weighted piece generation
   const [recentIndices, setRecentIndices] = useState<number[]>([]);
 
   const gridOrigin = useRef<{ x: number; y: number } | null>(null);
   const containerOrigin = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
-
 
   const gridRef = useRef(grid); gridRef.current = grid;
   const trayRef = useRef(tray); trayRef.current = tray;
@@ -283,7 +308,6 @@ export default function GameScreen() {
 
   const activePiece = tray[selected];
 
-  // Load personal best on mount
   useEffect(() => {
     loadClassicBest().then(best => {
       setPersonalBest(best);
@@ -341,7 +365,6 @@ export default function GameScreen() {
     const isOver = !hasAnyValidMove(cleared, finalTray);
     const newBestCombo = Math.max(bestComboRef.current, result.newCombo);
 
-    // Check personal best
     const isRecord = result.newScore > personalBestRef.current;
     if (isOver && isRecord) {
       saveClassicBest(result.newScore);
@@ -351,7 +374,6 @@ export default function GameScreen() {
       saveClassicBest(result.newScore);
     }
 
-    // Flash animation + score pulse trigger
     if (linesCleared > 0) {
       setLinesJustCleared(true);
       setTimeout(() => setLinesJustCleared(false), 600);
@@ -362,7 +384,7 @@ export default function GameScreen() {
         if (placed.every(r => r[c] !== null)) flashC.add(c);
 
       const pColor = COLORS.pieces[piece.color]?.fill ?? COLORS.primary;
-      flashColorRef.current = pColor; // sync update before re-render
+      flashColorRef.current = pColor;
       setFlashRows(flashR); setFlashCols(flashC);
       setTimeout(() => { setFlashRows(new Set()); setFlashCols(new Set()); }, 240);
 
@@ -390,7 +412,6 @@ export default function GameScreen() {
       }
     }
 
-    // Haptics + sound
     if (linesCleared > 0) {
       hapticsRef.current.lineCleared();
       soundRef.current.playClear();
@@ -415,8 +436,6 @@ export default function GameScreen() {
     setRecentIndices(newRecent);
     setGhost(null); setGhostValid(false);
     if (isOver) {
-      // Show interstitial before game over screen — standard casual game pattern
-      // Small delay so the last move animates before the ad appears
       setTimeout(() => {
         showInterstitial(() => setGameOver(true));
       }, 600);
@@ -439,8 +458,7 @@ export default function GameScreen() {
       onPanResponderMove: (e) => {
         if (gameOverRef.current) return;
         const piece = trayRef.current[idx];
-        if (!piece) return;
-        if (!gridOrigin.current) return;
+        if (!piece || !gridOrigin.current) return;
         const { row, col } = fingerToCell(e.nativeEvent.pageX, e.nativeEvent.pageY - LIFT, gridOrigin.current, piece);
         const c = clamp(row, col, piece);
         setGhost(c); setGhostValid(canPlace(gridRef.current, piece, c.row, c.col));
@@ -475,7 +493,6 @@ export default function GameScreen() {
     setComboFloatVisible(false); glowAnim.setValue(0);
   }
 
-  // ─── Fresh pieces on Watch Ad ────────────────────────────────────────────────
   function handleWatchAd() {
     showRewarded(() => {
       const freshTray = drawWeightedTray([], gridRef.current) as Tray;
@@ -486,7 +503,6 @@ export default function GameScreen() {
     });
   }
 
-  // ─── Back with confirmation ───────────────────────────────────────────────────
   function handleBack() {
     if (gameOver || piecesPlaced === 0) { router.back(); return; }
     Alert.alert(
@@ -519,7 +535,6 @@ export default function GameScreen() {
           {combo > 1 && <Text style={styles.comboText}>🔥 ×{combo}</Text>}
         </View>
 
-        {/* Personal best */}
         <View style={styles.bestBox}>
           <Text style={styles.bestBoxLabel}>BEST</Text>
           <Text style={styles.bestBoxNum}>
@@ -528,7 +543,7 @@ export default function GameScreen() {
         </View>
       </View>
 
-      {/* Score — large and centered */}
+      {/* Score */}
       <View style={styles.scoreRow}>
         <AnimatedScore
           value={score}
@@ -546,79 +561,83 @@ export default function GameScreen() {
       {/* Grid */}
       <View style={styles.gridWrapper}>
 
-      <Animated.View style={[styles.gridGlow, {
-        opacity: glowAnim,
-        borderColor: flashColorRef.current,
-        shadowColor: flashColorRef.current,
-      }]} pointerEvents="none" />
+        <Animated.View style={[styles.gridGlow, {
+          opacity: glowAnim,
+          borderColor: flashColorRef.current,
+          shadowColor: flashColorRef.current,
+        }]} pointerEvents="none" />
 
-      {comboFloatVisible && (
-        <Animated.View style={[styles.comboFloat, {
-          top: comboFloatRowY - 20,
-          opacity: comboFloatOpacity,
-          transform: [{ translateY: comboFloatY }],
-        }]} pointerEvents="none">
-          <Text style={styles.comboFloatText}>{comboFloatText}</Text>
-        </Animated.View>
-      )}
+        {comboFloatVisible && (
+          <Animated.View style={[styles.comboFloat, {
+            top: comboFloatRowY - 20,
+            opacity: comboFloatOpacity,
+            transform: [{ translateY: comboFloatY }],
+          }]} pointerEvents="none">
+            <Text style={styles.comboFloatText}>{comboFloatText}</Text>
+          </Animated.View>
+        )}
 
-      <View
-        style={styles.gridContainer}
-        onLayout={e => e.target.measure((_x, _y, _w, _h, px, py) => {
-          gridOrigin.current = { x: px + 8, y: py + 8 };
-        })}
-      >
-        {grid.map((row, r) => (
-          <View key={r} style={styles.row}>
-            {row.map((cell, c) => {
-              const isGhost = ghostCells.has(`${r},${c}`);
-              const willClear = wouldClearRows.has(r) || wouldClearCols.has(c);
-              const isFlashing = flashRows.has(r) || flashCols.has(c);
-              const color = cell !== null ? COLORS.pieces[cell] : null;
-
-              return (
-                <TouchableOpacity key={c} activeOpacity={0.8}
-                  onPress={() => handleCellTap(r, c)}
-                  style={[
-                    styles.cell,
-                    cell !== null && {
-                      backgroundColor: color!.fill,
-                      shadowColor: color!.fill,
-                      shadowOpacity: 0.45, shadowRadius: 3,
-                      shadowOffset: { width: 0, height: 2 },
-                    },
-                    isFlashing && cell !== null && { backgroundColor: flashColorRef.current, opacity: 1 },
-                    isFlashing && cell === null && { backgroundColor: flashColorRef.current, opacity: 0.55 },
-
-                    !isGhost && !isFlashing && willClear && cell === null && { backgroundColor: COLORS.accent, opacity: 0.18 },
-                  ]}
-                />
-              );
-            })}
-          </View>
-        ))}
-      </View>
-
-      {/* Placement overlay */}
-      {isDragging && ghost && activePiece && (
-        <View style={styles.placementOverlay} pointerEvents="none">
-          {Array.from({ length: 8 }, (_, r) => (
+        <Animated.View
+          style={styles.gridContainer}
+          onLayout={e => e.target.measure((_x, _y, _w, _h, px, py) => {
+            gridOrigin.current = { x: px + 8, y: py + 8 };
+          })}
+        >
+          {grid.map((row, r) => (
             <View key={r} style={styles.row}>
-              {Array.from({ length: 8 }, (_, c) => {
+              {row.map((cell, c) => {
                 const isGhost = ghostCells.has(`${r},${c}`);
-                const gc      = COLORS.pieces[activePiece.color];
+                const willClear = wouldClearRows.has(r) || wouldClearCols.has(c);
+                const isFlashing = flashRows.has(r) || flashCols.has(c);
+                const color = cell !== null ? COLORS.pieces[cell] : null;
+
                 return (
-                  <View key={c} style={[
-                    styles.overlayCell,
-                    isGhost && ghostValid  && { backgroundColor: gc.fill, opacity: 0.72, borderWidth: 2, borderColor: gc.fill },
-                    isGhost && !ghostValid && { backgroundColor: gc.fill, opacity: 1, borderWidth: 2, borderColor: COLORS.danger },
-                  ]} />
+                  <TouchableOpacity key={c} activeOpacity={0.8}
+                    onPress={() => handleCellTap(r, c)}
+                    style={[
+                      styles.cell,
+                      cell !== null && {
+                        backgroundColor: color!.fill,
+                        shadowColor: color!.fill,
+                        shadowOpacity: 0.45, shadowRadius: 3,
+                        shadowOffset: { width: 0, height: 2 },
+                      },
+                      isFlashing && cell !== null && { backgroundColor: flashColorRef.current, opacity: 1 },
+                      isFlashing && cell === null && { backgroundColor: flashColorRef.current, opacity: 0.55 },
+                      !isGhost && !isFlashing && willClear && cell === null && { backgroundColor: COLORS.accent, opacity: 0.18 },
+                    ]}
+                  />
                 );
               })}
             </View>
           ))}
-        </View>
-      )}
+
+        </Animated.View>
+
+        {/* Placement overlay — sibling of gridContainer inside gridWrapper, matching Rush structure */}
+        {isDragging && ghost && activePiece && (
+          <View style={styles.placementOverlay} pointerEvents="none">
+            {Array.from({ length: 8 }, (_, r) => (
+              <View key={r} style={styles.row}>
+                {Array.from({ length: 8 }, (_, c) => {
+                  const isGhost = ghostCells.has(`${r},${c}`);
+                  const gc      = COLORS.pieces[activePiece.color];
+                  if (isGhost && ghostValid) {
+                    return <View key={c} style={[styles.overlayCell, { backgroundColor: gc.fill, opacity: 1, borderWidth: 2, borderColor: "rgba(255,255,255,0.5)" }]} />;
+                  }
+                  if (isGhost && !ghostValid) {
+                    return (
+                      <View key={c} style={[styles.overlayCell, { backgroundColor: gc.fill, opacity: 0.85, borderWidth: 2, borderColor: COLORS.danger }]}>
+                        <Image source={require("../assets/pieces/block.png")} style={styles.blockOverlay} resizeMode="cover" />
+                      </View>
+                    );
+                  }
+                  return <View key={c} style={styles.overlayCell} />;
+                })}
+              </View>
+            ))}
+          </View>
+        )}
       </View>
 
       <Text style={styles.hint}>
@@ -646,19 +665,15 @@ export default function GameScreen() {
         )}
       </View>
 
-      {/* Piece count centered below tray */}
-      <View style={styles.pieceCountRow}>
-        <Text style={styles.pieceCountText}>∞ Classic Mode</Text>
-      </View>
-
-
-
+      {/* Single banner ad — sits flush below the tray, no extra gap */}
       {BannerAd && BannerAdSize && (
-        <BannerAd
-          unitId={AD_UNIT_IDS.banner}
-          size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER}
-          requestOptions={{ requestNonPersonalizedAdsOnly: false }}
-        />
+        <View style={styles.bannerContainer}>
+          <BannerAd
+            unitId={AD_UNIT_IDS.banner}
+            size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER}
+            requestOptions={{ requestNonPersonalizedAdsOnly: false }}
+          />
+        </View>
       )}
 
       {gameOver && (
@@ -674,19 +689,10 @@ export default function GameScreen() {
           onWatchAd={handleWatchAd}
         />
       )}
-      {/* Banner ad — absolute bottom, always visible */}
-      {BannerAd && BannerAdSize && (
-        <View style={styles.bannerWrapper}>
-          <BannerAd
-            unitId={AD_UNIT_IDS.banner}
-            size={BannerAdSize.BANNER}
-            requestOptions={{ requestNonPersonalizedAdsOnly: false }}
-          />
-        </View>
-      )}
     </View>
   );
 }
+
 // ─── Main styles ──────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
@@ -698,31 +704,47 @@ const styles = StyleSheet.create({
     flexDirection: "row", justifyContent: "space-between",
     alignItems: "center", width: "100%", height: 44, marginBottom: 4,
   },
-  back:     { color: COLORS.textDim, fontSize: 16 },
-  modeName: { color: COLORS.text, fontSize: 16, fontWeight: "bold" },
+  back: {
+    color: COLORS.textDim, fontSize: 16,
+    fontFamily: "FredokaOne_400Regular",
+  },
+  headerCenter: { flex: 1, alignItems: "center" },
+  modeLabel: {
+    color: COLORS.textDim, fontSize: 11,
+    fontFamily: "LuckiestGuy_400Regular", letterSpacing: 2,
+  },
+  comboText: {
+    color: COLORS.accent, fontSize: 13,
+    fontFamily: "LuckiestGuy_400Regular", letterSpacing: 1,
+  },
+  bestBox: {
+    backgroundColor: "rgba(255,255,255,0.06)", borderRadius: 10,
+    paddingHorizontal: 12, paddingVertical: 4, alignItems: "center",
+  },
+  bestBoxLabel: {
+    color: COLORS.textDim, fontSize: 9,
+    fontFamily: "FredokaOne_400Regular", letterSpacing: 2,
+  },
+  bestBoxNum: {
+    color: COLORS.text, fontSize: 14,
+    fontFamily: "LuckiestGuy_400Regular",
+  },
   scoreRow: { alignItems: "center", marginBottom: 10, width: "100%" },
-  score:    { color: COLORS.text, fontSize: 52, fontWeight: "bold", textAlign: "center", lineHeight: 56 },
+  score: {
+    color: COLORS.text, fontSize: 52,
+    fontFamily: "LuckiestGuy_400Regular",
+    textAlign: "center", lineHeight: 58, letterSpacing: 2,
+  },
   newRecordBadge: {
     backgroundColor: "rgba(255,230,109,0.12)", borderRadius: 8,
     paddingHorizontal: 10, paddingVertical: 3,
     borderWidth: 1, borderColor: COLORS.accent, marginTop: 4,
   },
-  newRecordText: { color: COLORS.accent, fontSize: 12, fontWeight: "bold" },
-  comboBadge: {
-    backgroundColor: "rgba(255,230,109,0.12)", borderRadius: 8,
-    paddingHorizontal: 10, paddingVertical: 3,
-    borderWidth: 1, borderColor: COLORS.accent,
+  newRecordText: {
+    color: COLORS.accent, fontSize: 12,
+    fontFamily: "LuckiestGuy_400Regular", letterSpacing: 1,
   },
-  comboText: { color: COLORS.accent, fontSize: 13, fontWeight: "bold" },
-  bestRow:   { flexDirection: "row", gap: 6, alignItems: "center", marginBottom: 6 },
-  bestLabel: { color: COLORS.textDim, fontSize: 12 },
-  bestScore: { color: COLORS.textDim, fontSize: 12, fontWeight: "bold" },
-  gridWrapper:  { position: "relative" as any },
-  bannerWrapper: {
-    position: "absolute" as any,
-    bottom: 0, left: 0, right: 0,
-    alignItems: "center", zIndex: 10,
-  },
+  gridWrapper: { position: "relative" as any },
   gridGlow: {
     position: "absolute" as any,
     top: -5, left: -5, right: -5, bottom: -5,
@@ -736,18 +758,20 @@ const styles = StyleSheet.create({
     left: 0, right: 0, alignItems: "center", zIndex: 20,
   },
   comboFloatText: {
-    color: "#FFFFFF", fontSize: 22, fontWeight: "bold", letterSpacing: 1,
+    color: "#FFFFFF", fontSize: 22,
+    fontFamily: "LuckiestGuy_400Regular", letterSpacing: 1,
     textShadowColor: "rgba(0,0,0,0.6)",
     textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 4,
   },
   gridContainer: {
     backgroundColor: "rgba(255,255,255,0.05)", borderRadius: 14, padding: 8, gap: GAP,
+    position: "relative" as any,
   },
   row: { flexDirection: "row", gap: GAP },
   cell: {
     width: CELL_SIZE, height: CELL_SIZE, borderRadius: CELL_R,
     backgroundColor: COLORS.cellEmpty,
-    alignItems: "center", justifyContent: "center", overflow: "hidden",
+    alignItems: "center", justifyContent: "center",
   },
   placementOverlay: {
     position: "absolute" as any,
@@ -758,7 +782,15 @@ const styles = StyleSheet.create({
     width: CELL_SIZE, height: CELL_SIZE,
     borderRadius: CELL_R, backgroundColor: "transparent",
   },
-  hint: { color: COLORS.textDim, fontSize: 11, marginTop: 8, marginBottom: 4 },
+  blockOverlay: {
+    position: "absolute" as any, top: 0, left: 0, right: 0, bottom: 0,
+    width: CELL_SIZE, height: CELL_SIZE, borderRadius: CELL_R, opacity: 0.85,
+  },
+  hint: {
+    color: COLORS.textDim, fontSize: 12,
+    fontFamily: "FredokaOne_400Regular",
+    marginTop: 8, marginBottom: 4,
+  },
   tray: {
     flexDirection: "row", gap: 10, marginTop: 8,
     backgroundColor: "rgba(255,255,255,0.05)",
@@ -770,7 +802,7 @@ const styles = StyleSheet.create({
     minWidth: 72, minHeight: 56, backgroundColor: "rgba(255,255,255,0.04)",
   },
   traySlotSelected: {
-    borderColor: COLORS.primary, backgroundColor: "rgba(78,205,196,0.1)",
+    borderColor: "#19db6c", backgroundColor: "rgba(78,205,196,0.1)",
     transform: [{ scale: 1.05 }],
   },
   trayEmpty: {
@@ -782,14 +814,7 @@ const styles = StyleSheet.create({
   trayEmptyDot: {
     width: 4, height: 4, borderRadius: 2, backgroundColor: "rgba(255,255,255,0.1)",
   },
-  pieceCountRow: { marginTop: 6, alignItems: "center" },
-  pieceCountText: { color: COLORS.textDim, fontSize: 12, letterSpacing: 0.5 },
-  headerCenter: { flex: 1, alignItems: "center" },
-  modeLabel: { color: COLORS.textDim, fontSize: 11, fontWeight: "bold", letterSpacing: 2 },
-  bestBox: {
-    backgroundColor: "rgba(255,255,255,0.06)", borderRadius: 10,
-    paddingHorizontal: 12, paddingVertical: 4, alignItems: "center",
+  bannerContainer: {
+    width: "100%", alignItems: "center", marginTop: 20,
   },
-  bestBoxLabel: { color: COLORS.textDim, fontSize: 9, letterSpacing: 2 },
-  bestBoxNum:   { color: COLORS.text, fontSize: 14, fontWeight: "bold" },
 });

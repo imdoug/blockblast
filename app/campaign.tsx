@@ -6,11 +6,11 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import {
-  View, Text, StyleSheet, TouchableOpacity,
+  View, Text, StyleSheet, TouchableOpacity, Image,
   ScrollView, StatusBar, Dimensions,
 } from "react-native";
 import { router, useFocusEffect } from "expo-router";
-import { COLORS } from "../src/constants/theme";
+import { COLORS, TEXT } from "../src/constants/theme";
 import { LEVELS } from "../src/game/levels";
 import { loadHighestLevel, loadAllStars } from "../src/store/storage";
 
@@ -49,7 +49,7 @@ function LevelTile({
       ]}
     >
       {isLocked ? (
-        <Text style={tileStyles.lockIcon}>🔒</Text>
+        <Image source={require("../assets/settings-icons/lock.png")} style={tileStyles.lockIcon} />
       ) : (
         <>
           <Text style={[tileStyles.levelNum, isLocked && tileStyles.levelNumLocked]}>
@@ -72,7 +72,7 @@ function LevelTile({
       {/* "PLAY" badge on current level */}
       {isCurrent && !isLocked && (
         <View style={tileStyles.playBadge}>
-          <Text style={tileStyles.playBadgeText}>▶</Text>
+          <Image source={require("../assets/icons/icon_Play.png")} style={{ width: 8, height: 8, tintColor: COLORS.primary }} />
         </View>
       )}
     </TouchableOpacity>
@@ -103,22 +103,41 @@ const tileStyles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.02)",
     opacity: 0.45,
   },
-  lockIcon: { fontSize: 16 },
+  lockIcon: {
+    width: 16,
+    height: 16,
+    resizeMode: "contain",
+  },
   levelNum: {
     color: COLORS.text,
     fontSize: TILE_SIZE > 60 ? 16 : 14,
-    fontWeight: "bold",
+    ...TEXT.number,
   },
-  levelNumLocked: { color: COLORS.textDim },
-  starsRow: { flexDirection: "row", gap: 1 },
-  star: { fontSize: 9, color: COLORS.accent },
-  starEmpty: { color: "rgba(255,255,255,0.15)" },
+  levelNumLocked: {
+    color: COLORS.textDim,
+  },
+  starsRow: {
+    flexDirection: "row",
+    gap: 1,
+  },
+  star: {
+    fontSize: 9,
+    color: COLORS.accent,
+    ...TEXT.label,
+  },
+  starEmpty: {
+    color: "rgba(255,255,255,0.15)",
+  },
   playBadge: {
     position: "absolute",
     top: 4,
     right: 6,
   },
-  playBadgeText: { fontSize: 8, color: COLORS.primary },
+  playBadgeText: {
+    fontSize: 8,
+    color: COLORS.primary,
+    ...TEXT.badge,
+  },
 });
 
 // ─── Campaign Screen ──────────────────────────────────────────────────────────
@@ -250,16 +269,32 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     gap: 12,
   },
-  back: { color: COLORS.textDim, fontSize: 16 },
+  back: {
+    color: COLORS.textDim,
+    fontSize: 16,
+    ...TEXT.nav,
+  },
   title: {
     flex: 1,
     color: COLORS.text,
     fontSize: 22,
-    fontWeight: "bold",
+    ...TEXT.title,
   },
-  starSummary: { flexDirection: "row", alignItems: "baseline", gap: 2 },
-  starSummaryText: { color: COLORS.accent, fontSize: 16, fontWeight: "bold" },
-  starSummaryMax: { color: COLORS.textDim, fontSize: 12 },
+  starSummary: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    gap: 2,
+  },
+  starSummaryText: {
+    color: COLORS.accent,
+    fontSize: 16,
+    ...TEXT.number,
+  },
+  starSummaryMax: {
+    color: COLORS.textDim,
+    fontSize: 12,
+    ...TEXT.label,
+  },
   progressRow: {
     paddingHorizontal: 16,
     marginBottom: 16,
@@ -268,6 +303,7 @@ const styles = StyleSheet.create({
   progressText: {
     color: COLORS.textDim,
     fontSize: 12,
+    ...TEXT.body,
   },
   progressTrack: {
     height: 6,
@@ -293,5 +329,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  loadingText: { color: COLORS.textDim, fontSize: 16 },
+  loadingText: {
+    color: COLORS.textDim,
+    fontSize: 16,
+    ...TEXT.body,
+  },
 });
