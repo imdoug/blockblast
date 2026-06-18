@@ -106,7 +106,7 @@ export default function HomeScreen() {
       <Image source={ICON_STARS} style={styles.statIcon} resizeMode="contain" />
       <View style={styles.statTextArea}>
         <Text style={[styles.statValue, { color: "#FFE600" }]} numberOfLines={1}>
-          {totalStars} / 297
+          {totalStars}
         </Text>
         <Text style={[styles.statLabel, { color: "#FFE600" }]}>stars</Text>
       </View>

@@ -6,7 +6,7 @@ import {
 } from "react-native";
 import { useRef, useState, useCallback, useEffect } from "react";
 import { router, useLocalSearchParams } from "expo-router";
-import { COLORS } from "../../src/constants/theme";
+import { COLORS, TEXT } from "../../src/constants/theme";
 import {
   createGrid, createObstacleGrid,
   canPlace, placePiece, clearLines, hasAnyValidMove,
@@ -81,6 +81,15 @@ function getStars(score: number, level: LevelConfig): number {
 
 function getPieceIdx(piece: Piece): number {
   return PIECES.findIndex(p => JSON.stringify(p.shape) === JSON.stringify(piece.shape)) ?? 0;
+}
+
+function ObstacleIcon({ durability, size = 14 }: { durability: number; size?: number }) {
+  const source = durability >= 4
+    ? require("../../assets/pieces/bomb.png")
+    : durability >= 3
+      ? require("../../assets/pieces/stone.png")
+      : require("../../assets/pieces/wood.png");
+  return <Image source={source} style={{ width: size, height: size, resizeMode: "contain" }} />;
 }
 
 // ─── MiniPiece ────────────────────────────────────────────────────────────────
@@ -161,9 +170,27 @@ function ScoreBar({ score, level, linesJustCleared, obsRemaining }: {
 
       {/* Goal text — shows star3Score as the target */}
       <Text style={sbS.goalText}>
-        {goalMet
-          ? (obsRemaining > 0 ? `Destroy ${obsRemaining} ${obsEmoji} to win!` : "Goal reached! 🎉")
-          : `Goal: ${level.star3Score.toLocaleString()}${obsGoalText}`}
+      {goalMet ? (
+              obsRemaining > 0 ? (
+                <View style={sbS.goalRow}>
+                  <Text style={sbS.goalText}>Destroy {obsRemaining} </Text>
+                  <ObstacleIcon durability={maxObsDur} size={13} />
+                  <Text style={sbS.goalText}> to win!</Text>
+                </View>
+              ) : (
+                <Text style={sbS.goalText}>Goal reached! 🎉</Text>
+              )
+            ) : (
+              <View style={sbS.goalRow}>
+                <Text style={sbS.goalText}>Goal: {level.star3Score.toLocaleString()}</Text>
+                {hasObstacles && obsRemaining > 0 && (
+                  <>
+                    <Text style={sbS.goalText}> + destroy {obsRemaining} </Text>
+                    <ObstacleIcon durability={maxObsDur} size={13} />
+                  </>
+                )}
+              </View>
+            )}
       </Text>
 
       {/* Progress bar with 3 star markers */}
@@ -174,7 +201,12 @@ function ScoreBar({ score, level, linesJustCleared, obsRemaining }: {
             key={i}
             style={[sbS.starMarker, { left: `${Math.min(t.pct * 100, 98)}%` as any }]}
           >
-            <Text style={[sbS.starIcon, t.lit && sbS.starLit]}>★</Text>
+            <Image
+              source={t.lit
+                ? require("../../assets/icons/icon_Stars.png")
+                : require("../../assets/icons/empty_star.png")}
+              style={{ width: 18, height: 18, resizeMode: "contain", opacity: t.lit ? 1 : 0.3 }}
+            />
           </View>
         ))}
 
@@ -191,10 +223,11 @@ function ScoreBar({ score, level, linesJustCleared, obsRemaining }: {
 }
 
 const sbS = StyleSheet.create({
+  goalRow: { flexDirection: "row", alignItems: "center" },
   container:  { width: "100%", alignItems: "center", gap: 4, marginBottom: 8 },
-  levelLabel: { color: COLORS.primary, fontSize: 11, fontWeight: "bold", letterSpacing: 3 },
-  scoreNum:   { fontSize: 52, fontWeight: "bold", color: COLORS.text, lineHeight: 56, textAlign: "center" },
-  goalText:   { color: COLORS.textDim, fontSize: 12 },
+  levelLabel: { ...TEXT.label, color: COLORS.primary, fontSize: 11 },
+  scoreNum: { ...TEXT.score, fontSize: 52, color: COLORS.text, lineHeight: 56, textAlign: "center" },
+  goalText: { ...TEXT.hint, color: COLORS.textDim, fontSize: 12 },
   trackWrapper: {
     width: "100%",
     paddingTop: 20, // space for stars above bar
@@ -206,7 +239,7 @@ const sbS = StyleSheet.create({
     transform: [{ translateX: -8 }],
     alignItems: "center",
   },
-  starIcon: { fontSize: 16, color: "rgba(255,255,255,0.2)" },
+  starIcon: { ...TEXT.number, fontSize: 16, color: "rgba(255,255,255,0.2)" },
   starLit:  { color: COLORS.accent },
   track: {
     height: 8, width: "100%",
@@ -231,17 +264,28 @@ function ResultsScreen({ phase, score, level, onReplay, onNext, onHome, onWatchA
   return (
     <View style={rsS.overlay}>
       <View style={rsS.modal}>
-        <Text style={rsS.icon}>{isWon ? "🎉" : "😞"}</Text>
+          <Image
+            source={isWon
+              ? require("../../assets/icons/icon_Trophy.png")
+              : require("../../assets/icons/icon_sad_face.png")}
+            style={rsS.icon}
+          />
         <Text style={rsS.title}>
           {isWon
             ? (level.id === 99 ? "You finished! 🏆" : "Level Complete!")
             : phase === "stuck" ? "No Moves Left!" : "So Close!"}
         </Text>
 
-        {isWon && (
+         {isWon && (
           <View style={rsS.starsRow}>
             {[1, 2, 3].map(s => (
-              <Text key={s} style={[rsS.star, s > stars && rsS.starDim]}>⭐</Text>
+              <Image
+                key={s}
+                source={s <= stars
+                  ? require("../../assets/icons/icon_Stars.png")
+                  : require("../../assets/icons/empty_star.png")}
+                style={{ width: 36, height: 36, resizeMode: "contain", opacity: s > stars ? 0.25 : 1 }}
+              />
             ))}
           </View>
         )}
@@ -309,8 +353,8 @@ const rsS = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.07)",
   },
-  icon:      { fontSize: 48 },
-  title:     { color: COLORS.text, fontSize: 22, fontWeight: "bold", textAlign: "center" },
+  icon:      { width: 56, height: 56, resizeMode: "contain" },
+  title: { ...TEXT.title, color: COLORS.text, fontSize: 22, textAlign: "center" },
   starsRow:  { flexDirection: "row", gap: 8 },
   star:      { fontSize: 30 },
   starDim:   { opacity: 0.2 },
@@ -323,9 +367,9 @@ const rsS = StyleSheet.create({
     width: "100%",
     gap: 2,
   },
-  scoreLabel:  { color: COLORS.textDim, fontSize: 11, letterSpacing: 3 },
-  scoreNum:    { fontSize: 42, fontWeight: "bold" },
-  gapText:     { color: COLORS.textDim, fontSize: 12, marginTop: 4, textAlign: "center" },
+  scoreLabel: { ...TEXT.label, color: COLORS.textDim, fontSize: 11 },
+  scoreNum: { ...TEXT.score, fontSize: 42 },
+  gapText: { ...TEXT.hint, color: COLORS.textDim, fontSize: 12, marginTop: 4, textAlign: "center" },
   btnPrimary: {
     backgroundColor: COLORS.primary,
     borderRadius: 14,
@@ -334,7 +378,7 @@ const rsS = StyleSheet.create({
     width: "100%",
     alignItems: "center",
   },
-  btnPrimaryText: { color: COLORS.background, fontSize: 16, fontWeight: "bold" },
+  btnPrimaryText: { ...TEXT.button, color: COLORS.background, fontSize: 16 },
   btnOutline: {
     borderRadius: 14,
     paddingHorizontal: 32,
@@ -344,7 +388,7 @@ const rsS = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: COLORS.primary,
   },
-  btnOutlineText: { color: COLORS.primary, fontSize: 15, fontWeight: "bold" },
+  btnOutlineText: { ...TEXT.button, color: COLORS.primary, fontSize: 15 },
   btnAd: {
     backgroundColor: COLORS.accent,
     borderRadius: 14,
@@ -353,8 +397,8 @@ const rsS = StyleSheet.create({
     width: "100%",
     alignItems: "center",
   },
-  btnAdText: { color: COLORS.background, fontSize: 14, fontWeight: "bold" },
-  homeLink:  { color: COLORS.textDim, fontSize: 13 },
+  btnAdText: { ...TEXT.button, color: COLORS.background, fontSize: 14 },
+  homeLink: { ...TEXT.nav, color: COLORS.textDim, fontSize: 13 },
 });
 
 // ─── Tooltip styles ───────────────────────────────────────────────────────────
@@ -378,11 +422,12 @@ const tipS = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(8,175,247,0.15)",
   },
-  emoji:   { fontSize: 32, letterSpacing: 8 },
-  title:   { color: COLORS.accent, fontSize: 22, fontWeight: "bold" },
-  body:    { color: "rgba(255,255,255,0.75)", fontSize: 15, textAlign: "center", lineHeight: 22 },
+  emojiRow: { flexDirection: "row", gap: 12, alignItems: "center" },
+  emojiImg: { width: 36, height: 36, resizeMode: "contain" },
+  title: { ...TEXT.title, color: COLORS.accent, fontSize: 22 },
+  body: { ...TEXT.body, color: "rgba(255,255,255,0.75)", fontSize: 15, textAlign: "center", lineHeight: 22 },
   divider: { width: "40%", height: 1, backgroundColor: "rgba(255,255,255,0.1)" },
-  dismiss: { color: "rgba(255,255,255,0.4)", fontSize: 13 },
+  dismiss: { ...TEXT.hint, color: "rgba(255,255,255,0.4)", fontSize: 13 },
 });
 
 // ─── LevelScreen ──────────────────────────────────────────────────────────────
@@ -783,9 +828,9 @@ export default function LevelScreen() {
               <Text style={styles.comboText}>🔥 ×{combo}</Text>
             </View>
           )}
-          {level.obstacles.length > 0 && (
+          {/* {level.obstacles.length > 0 && (
             <Text style={styles.obsRemaining}>🧱 {obsRemaining}</Text>
-          )}
+          )} */}
         </View>
       </View>
 
@@ -1004,11 +1049,11 @@ export default function LevelScreen() {
           <Text style={styles.goalToastEmoji}>🎉</Text>
           <Text style={styles.goalToastTitle}>Goal Reached!</Text>
           {obsRemaining > 0 && (
-            <Text style={styles.goalToastSub}>
-              {`Now destroy the ${obsRemaining} ${
-                (() => { const d = Math.max(...level.obstacles.map((o:any) => o.durability)); return d >= 4 ? "💣" : d >= 3 ? "🪨" : "🪵"; })()
-              } to win!`}
-            </Text>
+           <View style={styles.goalToastSubRow}>
+            <Text style={styles.goalToastSub}>Now destroy the {obsRemaining} </Text>
+            <ObstacleIcon durability={Math.max(...level.obstacles.map((o: any) => o.durability))} size={14} />
+            <Text style={styles.goalToastSub}> to win!</Text>
+          </View>
           )}
         </Animated.View>
       )}
@@ -1021,7 +1066,11 @@ export default function LevelScreen() {
           onPress={dismissObstacleTip}
         >
           <View style={tipS.card}>
-            <Text style={tipS.emoji}>🪵  🪨  💣</Text>
+            <View style={tipS.emojiRow}>
+              <Image source={require("../../assets/pieces/wood.png")}  style={tipS.emojiImg} />
+              <Image source={require("../../assets/pieces/stone.png")} style={tipS.emojiImg} />
+              <Image source={require("../../assets/pieces/bomb.png")}  style={tipS.emojiImg} />
+            </View>
             <Text style={tipS.title}>Obstacle Blocks!</Text>
             <Text style={tipS.body}>
               Fill the row or column containing a block to hit it.
@@ -1072,6 +1121,7 @@ export default function LevelScreen() {
 // ─── Main styles ──────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
+    goalToastSubRow: { flexDirection: "row", alignItems: "center" },
   container: {
     flex: 1, backgroundColor: COLORS.background,
     paddingTop: 52, paddingHorizontal: 16, alignItems: "center",
@@ -1095,14 +1145,14 @@ const styles = StyleSheet.create({
     height: 36,
     width: 120,
   },
-  back:        { color: COLORS.textDim, fontSize: 16 },
+  back: { ...TEXT.nav, color: COLORS.textDim, fontSize: 16 },
   comboBadge: {
     backgroundColor: "rgba(255,217,61,0.12)", borderRadius: 8,
     paddingHorizontal: 10, paddingVertical: 3,
     borderWidth: 1, borderColor: COLORS.accent,
   },
-  comboText:    { color: COLORS.accent, fontSize: 13, fontWeight: "bold" },
-  obsRemaining: { marginLeft: "auto" as any, color: COLORS.accent, fontSize: 13, fontWeight: "bold" },
+  comboText: { ...TEXT.badge, color: COLORS.accent, fontSize: 13 },
+  obsRemaining: { ...TEXT.badge, marginLeft: "auto", color: COLORS.accent, fontSize: 13 },
   obstaclePopBanner: {
     position: "absolute" as any, top: "42%" as any,
     left: 32, right: 32, zIndex: 50,
@@ -1110,7 +1160,7 @@ const styles = StyleSheet.create({
     borderRadius: 18, paddingHorizontal: 20, paddingVertical: 14,
     borderWidth: 1, borderColor: "rgba(200,140,60,0.4)", alignItems: "center",
   },
-  obstaclePopText: { color: COLORS.accent, fontSize: 14, fontWeight: "bold", textAlign: "center" },
+  obstaclePopText: { ...TEXT.badge, color: COLORS.accent, fontSize: 14, textAlign: "center" },
   gridWrapper:  { position: "relative" as any },
   bannerWrapper: {
     position: "absolute" as any,
@@ -1130,6 +1180,7 @@ const styles = StyleSheet.create({
     left: 0, right: 0, alignItems: "center", zIndex: 20,
   },
   comboFloatText: {
+    ...TEXT.button,
     color: COLORS.text, fontSize: 22, fontWeight: "bold", letterSpacing: 1,
     textShadowColor: "rgba(0,0,0,0.6)",
     textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 4,
@@ -1180,7 +1231,7 @@ const styles = StyleSheet.create({
     borderRadius: CELL_R,
     opacity: 0.85,
   },
-  hint: { color: COLORS.textDim, fontSize: 11, marginTop: 8, marginBottom: 4 },
+  hint: { ...TEXT.hint, color: COLORS.textDim, fontSize: 11, marginTop: 8, marginBottom: 4 },
   tray: {
     flexDirection: "row", gap: 10, marginTop: 8,
     backgroundColor: COLORS.gridBg,
@@ -1237,17 +1288,17 @@ const styles = StyleSheet.create({
     borderRadius: 14, borderWidth: 1.5, borderColor: COLORS.primary,
     paddingHorizontal: 12, paddingVertical: 8, alignItems: "center", gap: 8,
   },
-  goalBannerTitle: { color: COLORS.primary, fontSize: 13, fontWeight: "bold", letterSpacing: 0.5 },
+  goalBannerTitle: { ...TEXT.label, color: COLORS.primary, fontSize: 13 },
   goalBtnRow:     { flexDirection: "row", gap: 8, width: "100%" },
   goalBtnFinish: {
     flex: 1, backgroundColor: COLORS.primary,
     borderRadius: 10, paddingVertical: 7, alignItems: "center",
   },
-  goalBtnFinishText: { color: COLORS.background, fontSize: 12, fontWeight: "bold" },
+  goalBtnFinishText: { ...TEXT.button, color: COLORS.background, fontSize: 12 },
   goalBtnKeep: {
     flex: 1, backgroundColor: "rgba(78,205,196,0.1)",
     borderRadius: 10, paddingVertical: 7, alignItems: "center",
     borderWidth: 1, borderColor: COLORS.primary,
   },
-  goalBtnKeepText: { color: COLORS.primary, fontSize: 12, fontWeight: "bold" },
+  goalBtnKeepText: { ...TEXT.button, color: COLORS.primary, fontSize: 12 },
 });

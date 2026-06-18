@@ -236,7 +236,17 @@ function AlreadyDoneScreen({ score, stars }: { score: number; stars: number }) {
         <Text style={adS.scoreNum}>{score.toLocaleString()}</Text>
         <View style={adS.starsRow}>
           {[1, 2, 3].map(s => (
-            <Text key={s} style={[adS.star, s > stars && adS.starDim]}>⭐</Text>
+            <View style={adS.starsRow}>
+              {[1].map(s => (
+                <Image
+                  key={s}
+                  source={s <= stars
+                    ? require("../assets/icons/icon_Stars.png")
+                    : require("../assets/icons/empty_star.png")}
+                  style={{ width: 32, height: 32, resizeMode: "contain", opacity: s > stars ? 0.25 : 1 }}
+                />
+              ))}
+            </View>
           ))}
         </View>
       </View>
@@ -260,11 +270,12 @@ const adS = StyleSheet.create({
   icon:  { fontSize: 56 },
   title: { color: COLORS.text,    fontSize: 28, ...TEXT.title },
   date:  { color: COLORS.textDim, fontSize: 14, ...TEXT.body },
-  scoreBox: {
+    scoreBox: {
     backgroundColor: "rgba(255,255,255,0.05)", borderRadius: 16,
     paddingHorizontal: 40, paddingVertical: 20,
     alignItems: "center", gap: 6, width: "100%",
     borderWidth: 1, borderColor: "rgba(255,255,255,0.07)",
+    overflow: "hidden",
   },
   scoreLabel: { color: COLORS.textDim, fontSize: 11, letterSpacing: 3, ...TEXT.body },
   scoreNum:   { color: COLORS.primary, fontSize: 48, ...TEXT.score },
@@ -299,7 +310,12 @@ function ResultsOverlay({ phase, score, onHome }: {
   return (
     <View style={roS.overlay}>
       <View style={roS.modal}>
-        <Text style={roS.icon}>{isWon ? "🎉" : "😞"}</Text>
+        <Image
+          source={isWon
+            ? require("../assets/icons/icon_Trophy.png")
+            : require("../assets/icons/icon_sad_face.png")}
+          style={roS.icon}
+        />
         <Text style={roS.title}>
           {isWon ? "Challenge Complete!" : phase === "stuck" ? "No Moves Left!" : "Not Quite!"}
         </Text>
@@ -308,7 +324,13 @@ function ResultsOverlay({ phase, score, onHome }: {
         {isWon && (
           <View style={roS.starsRow}>
             {[1, 2, 3].map(s => (
-              <Text key={s} style={[roS.star, s > stars && roS.starDim]}>⭐</Text>
+              <Image
+                key={s}
+                source={s <= stars
+                  ? require("../assets/icons/icon_Stars.png")
+                  : require("../assets/icons/empty_star.png")}
+                style={[roS.starImg, s > stars && roS.starDim]}
+              />
             ))}
           </View>
         )}
@@ -353,12 +375,12 @@ const roS = StyleSheet.create({
     shadowColor: "#000", shadowOpacity: 0.6,
     shadowRadius: 24, shadowOffset: { width: 0, height: 12 },
   },
-  icon:  { fontSize: 44 },
-  title: { color: COLORS.text, fontSize: 22, textAlign: "center", ...TEXT.title },
-  date:  { color: COLORS.textDim, fontSize: 13, ...TEXT.body },
+  icon:  { width: 52, height: 52, resizeMode: "contain" },
+  title:    { color: COLORS.text, fontSize: 22, textAlign: "center", ...TEXT.title },
+  date:     { color: COLORS.textDim, fontSize: 13, ...TEXT.body },
   starsRow: { flexDirection: "row", gap: 8 },
-  star:    { fontSize: 28 },
-  starDim: { opacity: 0.2 },
+  starImg:  { width: 28, height: 28 },
+  starDim:  { opacity: 0.25 },
   scoreBox: {
     alignItems: "center", backgroundColor: "rgba(255,255,255,0.05)",
     borderRadius: 14, paddingHorizontal: 28, paddingVertical: 12,
