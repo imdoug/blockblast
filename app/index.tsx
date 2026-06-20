@@ -81,56 +81,57 @@ export default function HomeScreen() {
         <Image source={BTN_SETTINGS} style={styles.settingsIcon} resizeMode="contain" />
       </TouchableOpacity>
 
+      <View style={styles.topSpacer} />
       {/* ── Stats row ── */}
       {(classicBest > 0 || rushBest > 0 || totalStars > 0) && (
-  <View style={styles.statsRow}>
-    {/* Trophy / Classic Best */}
-    <TouchableOpacity
-      activeOpacity={0.8}
-      style={[styles.statCard, { borderColor: "#FFE600" }]}
-    >
-      <Image source={ICON_TROPHY} style={styles.statIcon} resizeMode="contain" />
-      <View style={styles.statTextArea}>
-        <Text style={[styles.statValue, { color: "#FFE600" }]} numberOfLines={1}>
-          {classicBest > 0 ? classicBest.toLocaleString() : "0"}
-        </Text>
-        <Text style={[styles.statLabel, { color: "#ffe600" }]}>classic</Text>
-      </View>
-    </TouchableOpacity>
+        <View style={[styles.statsRow,(classicBest === 0 && rushBest === 0 && totalStars === 0) && styles.hidden]}>
+          {/* Trophy / Classic Best */}
+          <TouchableOpacity
+            activeOpacity={0.8}
+            style={[styles.statCard, { borderColor: "#FFE600" }]}
+          >
+            <Image source={ICON_TROPHY} style={styles.statIcon} resizeMode="contain" />
+            <View style={styles.statTextArea}>
+              <Text style={[styles.statValue, { color: "#FFE600" }]} numberOfLines={1}>
+                {classicBest > 0 ? classicBest.toLocaleString() : "0"}
+              </Text>
+              <Text style={[styles.statLabel, { color: "#ffe600" }]}>classic</Text>
+            </View>
+          </TouchableOpacity>
 
-    {/* Stars */}
-    <TouchableOpacity
-      activeOpacity={0.8}
-      style={[styles.statCard, { borderColor: "#FFE600" }]}
-    >
-      <Image source={ICON_STARS} style={styles.statIcon} resizeMode="contain" />
-      <View style={styles.statTextArea}>
-        <Text style={[styles.statValue, { color: "#FFE600" }]} numberOfLines={1}>
-          {totalStars}
-        </Text>
-        <Text style={[styles.statLabel, { color: "#FFE600" }]}>stars</Text>
-      </View>
-    </TouchableOpacity>
+          {/* Stars */}
+          <TouchableOpacity
+            activeOpacity={0.8}
+            style={[styles.statCard, { borderColor: "#FFE600" }]}
+          >
+            <Image source={ICON_STARS} style={styles.statIcon} resizeMode="contain" />
+            <View style={styles.statTextArea}>
+              <Text style={[styles.statValue, { color: "#FFE600" }]} numberOfLines={1}>
+                {totalStars}
+              </Text>
+              <Text style={[styles.statLabel, { color: "#FFE600" }]}>stars</Text>
+            </View>
+          </TouchableOpacity>
 
-    {/* Rush Best */}
-    <TouchableOpacity
-      activeOpacity={0.8}
-      style={[styles.statCard, { borderColor: "#FFE600" }]}
-    >
-      <Image source={ICON_STARS} style={styles.statIcon} resizeMode="contain" />
-      <View style={styles.statTextArea}>
-        <Text style={[styles.statValue, { color: "#FFE600" }]} numberOfLines={1}>
-          {rushBest > 0 ? rushBest.toLocaleString() : "0"}
-        </Text>
-        <Text style={[styles.statLabel, { color: "#FFE600" }]}>rush</Text>
-      </View>
-    </TouchableOpacity>
-  </View>
-)}
+          {/* Rush Best */}
+          <TouchableOpacity
+            activeOpacity={0.8}
+            style={[styles.statCard, { borderColor: "#FFE600" }]}
+          >
+            <Image source={ICON_STARS} style={styles.statIcon} resizeMode="contain" />
+            <View style={styles.statTextArea}>
+              <Text style={[styles.statValue, { color: "#FFE600" }]} numberOfLines={1}>
+                {rushBest > 0 ? rushBest.toLocaleString() : "0"}
+              </Text>
+              <Text style={[styles.statLabel, { color: "#FFE600" }]}>rush</Text>
+            </View>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* ── Streak ── */}
       {streak > 0 && (
-        <View style={[styles.streakCard, { borderColor: "#FF7C30" }]}>
+        <View style={[styles.streakCard, { borderColor: "#FF7C30" }, streak === 0 && styles.hidden]}>
           <Image source={ICON_STREAK} style={styles.streakIcon} resizeMode="contain" />
           <Text style={styles.streakText}>{streak} day streak </Text>
         </View>
@@ -224,6 +225,17 @@ const CARD_RADIUS  = 16;
 const BORDER_W     = 2;
 
 const styles = StyleSheet.create({
+  hidden: {
+  opacity: 0,
+  height: 0,
+  marginTop: 0,
+  paddingVertical: 0,
+  borderWidth: 0,
+  overflow: "hidden",
+},
+topSpacer: {
+  height: 160, // moved out of statsRow
+},
   container: {
     flex: 1,
     alignItems: "center",
@@ -251,7 +263,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 8,
     width: "100%",
-    marginTop: 160,
   },
   statCard: {
     flex: 1,

@@ -15,12 +15,44 @@ import { COLORS, SIZES, TEXT } from "../src/constants/theme";
 import { createGrid, canPlace, placePiece, clearLines, hasAnyValidMove } from "../src/game/grid";
 import { getDailySeed, randomPieceSeeded, seededRandom, PIECES } from "../src/game/pieces";
 import { calculateScore, countCells } from "../src/game/scoring";
-import { loadTodaysDailyResult, saveDailyResult, incrementStreakOnDailyComplete, updateAndLoadStreak } from "../src/store/storage";
+import {
+  loadTodaysDailyResult, saveDailyResult, incrementStreakOnDailyComplete, updateAndLoadStreak,
+  loadTodaysDailyTarget, saveTodaysDailyTarget,
+} from "../src/store/storage";
 import { Grid, Piece, Tray } from "../src/types";
 
 // ─── Daily level config ────────────────────────────────────────────────────────
 const DAILY_PIECE_COUNT = 20;
-const DAILY_TARGET      = 3000;
+const DAILY_TARGET_BASE = 3000;
+
+// ─── Streak-scaled target ───────────────────────────────────────────────────────
+// The score needed to pass the daily challenge scales with the player's streak,
+// so it gets progressively harder the longer they keep it alive.
+//
+//  - +1% compounding every streak day, through day 90 (daily growth stops there)
+//  - +5% extra compounding bump on milestone days: 3, 7, 15, 30, then every 30
+//    days after (60, 90, 120, 150...) — these milestone bumps never stop
+//
+// streak = number of consecutive days completed BEFORE today's challenge.
+// The resulting target is persisted (see storage.ts) so it never shifts mid-
+// session or across app restarts on the same UTC day.
+const DAILY_GROWTH_CUTOFF_DAY = 90;
+
+function isStreakMilestone(day: number): boolean {
+  if (day === 3 || day === 7 || day === 15) return true;
+  if (day > 15 && day % 30 === 0) return true;
+  return false;
+}
+
+function getDailyTargetForStreak(streak: number): number {
+  let target = DAILY_TARGET_BASE;
+  for (let day = 1; day <= streak; day++) {
+    if (day <= DAILY_GROWTH_CUTOFF_DAY) target *= 1.01;
+    if (isStreakMilestone(day)) target *= 1.05;
+  }
+  // Round to nearest 50 for a clean displayed number
+  return Math.round(target / 50) * 50;
+}
 
 // ─── Difficulty curve ─────────────────────────────────────────────────────────
 // Pieces are bucketed by complexity. The first few slots pull only from easy
@@ -90,10 +122,10 @@ function clamp(row: number, col: number, piece: Piece) {
   };
 }
 
-function getStars(score: number): number {
-  if (score >= DAILY_TARGET * 2)   return 3;
-  if (score >= DAILY_TARGET * 1.5) return 2;
-  if (score >= DAILY_TARGET)       return 1;
+function getStars(score: number, target: number): number {
+  if (score >= target * 2)   return 3;
+  if (score >= target * 1.5) return 2;
+  if (score >= target)       return 1;
   return 0;
 }
 
@@ -153,8 +185,10 @@ function DragShadow({ piece, position }: { piece: Piece; position: Animated.Valu
 
 // ─── Score Bar ────────────────────────────────────────────────────────────────
 
-function ScoreBar({ score, piecesRemaining }: { score: number; piecesRemaining: number }) {
-  const progress = Math.min(score / DAILY_TARGET, 1);
+function ScoreBar({ score, piecesPlaced, target }: {
+  score: number; piecesPlaced: number; target: number;
+}) {
+  const progress = Math.min(score / target, 1);
   const anim = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     Animated.timing(anim, { toValue: progress, duration: 350, useNativeDriver: false }).start();
@@ -164,8 +198,6 @@ function ScoreBar({ score, piecesRemaining }: { score: number; piecesRemaining: 
     inputRange: [0, 0.5, 1],
     outputRange: [COLORS.danger, COLORS.accent, COLORS.primary],
   });
-  const isLow     = piecesRemaining <= 5;
-  const isVeryLow = piecesRemaining <= 2;
 
   return (
     <View style={sbS.container}>
@@ -174,11 +206,9 @@ function ScoreBar({ score, piecesRemaining }: { score: number; piecesRemaining: 
           <Text style={sbS.dailyLabel}>📅  DAILY CHALLENGE</Text>
           <Text style={sbS.dateText}>{formatToday()}</Text>
         </View>
-        <View style={[sbS.counter, isLow && sbS.cLow, isVeryLow && sbS.cVeryLow]}>
-          <Text style={[sbS.cNum, isLow && { color: COLORS.accent }, isVeryLow && { color: COLORS.danger }]}>
-            {piecesRemaining}
-          </Text>
-          <Text style={sbS.cLabel}>left</Text>
+        <View style={sbS.counter}>
+          <Text style={sbS.cNum}>{piecesPlaced}</Text>
+          <Text style={sbS.cLabel}>placed</Text>
         </View>
       </View>
       <View style={sbS.track}>
@@ -190,7 +220,7 @@ function ScoreBar({ score, piecesRemaining }: { score: number; piecesRemaining: 
       </View>
       <Text style={sbS.scoreText}>
         {score.toLocaleString()}
-        <Text style={sbS.targetText}> / {DAILY_TARGET.toLocaleString()} to pass</Text>
+        <Text style={sbS.targetText}> / {target.toLocaleString()} to pass</Text>
       </Text>
     </View>
   );
@@ -236,17 +266,13 @@ function AlreadyDoneScreen({ score, stars }: { score: number; stars: number }) {
         <Text style={adS.scoreNum}>{score.toLocaleString()}</Text>
         <View style={adS.starsRow}>
           {[1, 2, 3].map(s => (
-            <View style={adS.starsRow}>
-              {[1].map(s => (
-                <Image
-                  key={s}
-                  source={s <= stars
-                    ? require("../assets/icons/icon_Stars.png")
-                    : require("../assets/icons/empty_star.png")}
-                  style={{ width: 32, height: 32, resizeMode: "contain", opacity: s > stars ? 0.25 : 1 }}
-                />
-              ))}
-            </View>
+            <Image
+              key={s}
+              source={s <= stars
+                ? require("../assets/icons/icon_Stars.png")
+                : require("../assets/icons/empty_star.png")}
+              style={{ width: 32, height: 32, resizeMode: "contain", opacity: s > stars ? 0.25 : 1 }}
+            />
           ))}
         </View>
       </View>
@@ -296,10 +322,10 @@ const adS = StyleSheet.create({
 
 // ─── Results Overlay ──────────────────────────────────────────────────────────
 
-function ResultsOverlay({ phase, score, onHome }: {
-  phase: Phase; score: number; onHome: () => void;
+function ResultsOverlay({ phase, score, target, onHome }: {
+  phase: Phase; score: number; target: number; onHome: () => void;
 }) {
-  const stars = getStars(score);
+  const stars = getStars(score, target);
   const isWon = phase === "won";
 
   const shareText =
@@ -342,7 +368,7 @@ function ResultsOverlay({ phase, score, onHome }: {
           </Text>
           {!isWon && (
             <Text style={roS.gapText}>
-              {Math.round((score / DAILY_TARGET) * 100)}% of target
+              {Math.round((score / target) * 100)}% of target
             </Text>
           )}
         </View>
@@ -427,7 +453,7 @@ export default function DailyScreen() {
   const [selected, setSelected] = useState(0);
   const [score, setScore] = useState(0);
   const [combo, setCombo] = useState(0);
-  const [piecesRemaining, setPiecesRemaining] = useState(DAILY_PIECE_COUNT);
+  const [piecesPlaced, setPiecesPlaced] = useState(0);
   const [phase, setPhase] = useState<Phase>("playing");
   const [ghost, setGhost] = useState<{ row: number; col: number } | null>(null);
   const [ghostValid, setGhostValid] = useState(false);
@@ -435,24 +461,42 @@ export default function DailyScreen() {
   const [alreadyDone, setAlreadyDone] = useState<{ score: number; stars: number } | null>(null);
   const [streak, setStreak] = useState(0);
 
+  // Target for today — scales with streak, locked in once loaded/computed.
+  // See storage.ts (loadTodaysDailyTarget / saveTodaysDailyTarget) for persistence.
+  const [dailyTarget, setDailyTarget] = useState(DAILY_TARGET_BASE);
+
   const gridOrigin      = useRef<{ x: number; y: number } | null>(null);
   const containerOrigin = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const dragPosition    = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
 
-  const gridRef     = useRef(grid);            gridRef.current     = grid;
-  const trayRef     = useRef(tray);            trayRef.current     = tray;
-  const selectedRef = useRef(selected);        selectedRef.current = selected;
-  const scoreRef    = useRef(score);           scoreRef.current    = score;
-  const comboRef    = useRef(combo);           comboRef.current    = combo;
-  const piecesRef   = useRef(piecesRemaining); piecesRef.current   = piecesRemaining;
-  const phaseRef    = useRef(phase);           phaseRef.current    = phase;
+  const gridRef       = useRef(grid);            gridRef.current       = grid;
+  const trayRef       = useRef(tray);            trayRef.current       = tray;
+  const selectedRef   = useRef(selected);        selectedRef.current   = selected;
+  const scoreRef      = useRef(score);           scoreRef.current      = score;
+  const comboRef       = useRef(combo);          comboRef.current      = combo;
+  const piecesPlacedRef = useRef(piecesPlaced); piecesPlacedRef.current = piecesPlaced;
+  const phaseRef        = useRef(phase);          phaseRef.current     = phase;
+  const dailyTargetRef  = useRef(dailyTarget);    dailyTargetRef.current = dailyTarget;
 
   useEffect(() => {
     async function check() {
-      const result = await loadTodaysDailyResult();
-      if (result) setAlreadyDone({ score: result.score, stars: result.stars });
       const s = await updateAndLoadStreak();
       setStreak(s);
+
+      // Lock in today's target — reuse if already computed this session/day,
+      // otherwise compute fresh from current streak and persist it so it
+      // never shifts mid-session or across app restarts on the same day.
+      const persisted = await loadTodaysDailyTarget();
+      if (persisted !== null) {
+        setDailyTarget(persisted);
+      } else {
+        const fresh = getDailyTargetForStreak(s);
+        setDailyTarget(fresh);
+        saveTodaysDailyTarget(fresh); // fire-and-forget, don't block UI
+      }
+
+      const result = await loadTodaysDailyResult();
+      if (result) setAlreadyDone({ score: result.score, stars: result.stars });
     }
     check();
   }, []);
@@ -461,7 +505,7 @@ export default function DailyScreen() {
   // Streak only increments on "won" — failed and stuck don't count.
   useEffect(() => {
     if (phase === "won" || phase === "failed" || phase === "stuck") {
-      const stars = getStars(score);
+      const stars = getStars(score, dailyTarget);
       saveDailyResult(score, stars);
       if (phase === "won") {
         incrementStreakOnDailyComplete();
@@ -512,10 +556,10 @@ export default function DailyScreen() {
       }
     }
 
-    const newPieces = piecesRef.current - 1;
+    const newPlaced = piecesPlacedRef.current + 1;
     let newPhase: Phase = "playing";
-    if (newPieces <= 0)
-      newPhase = result.newScore >= DAILY_TARGET ? "won" : "failed";
+    if (result.newScore >= dailyTargetRef.current)
+      newPhase = "won";
     else if (!hasAnyValidMove(cleared, finalTray))
       newPhase = "stuck";
 
@@ -524,10 +568,8 @@ export default function DailyScreen() {
     setSelected(nextSel);
     setScore(result.newScore);
     setCombo(result.newCombo);
-    setPiecesRemaining(newPieces);
+    setPiecesPlaced(newPlaced);
     setPhase(newPhase);
-    setGhost(null);
-    setGhostValid(false);
   }, []);
 
   const panResponders = useRef([0, 1, 2].map(idx =>
@@ -612,7 +654,7 @@ export default function DailyScreen() {
         )}
       </View>
 
-      <ScoreBar score={score} piecesRemaining={piecesRemaining} />
+      <ScoreBar score={score} piecesPlaced={piecesPlaced} target={dailyTarget} />
 
       <View style={styles.gridWrapper}>
         <View
@@ -686,7 +728,7 @@ export default function DailyScreen() {
       </View>
 
       {phase !== "playing" && (
-        <ResultsOverlay phase={phase} score={score} onHome={() => router.back()} />
+        <ResultsOverlay phase={phase} score={score} target={dailyTarget} onHome={() => router.back()} />
       )}
     </View>
   );

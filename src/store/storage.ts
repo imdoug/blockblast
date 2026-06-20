@@ -15,6 +15,7 @@ const KEYS = {
   CLASSIC_BEST:      "bb_classic_best",
   STREAK:            "bb_streak",
   DAILY_RESULT:      "bb_daily_result",
+  DAILY_TARGET:      "bb_daily_target",   
   OBSTACLE_TIP_SEEN: "bb_obstacle_tip_seen",
   HAPTICS_ENABLED:   "bb_haptics_enabled",
   SOUND_ENABLED:     "bb_sound_enabled",
@@ -234,5 +235,24 @@ export async function saveRushBest(score: number): Promise<void> {
     if (score > current) {
       await AsyncStorage.setItem(KEYS.RUSH_BEST, String(score));
     }
+  } catch {}
+}
+
+
+interface DailyTargetData { date: string; target: number; }
+
+export async function loadTodaysDailyTarget(): Promise<number | null> {
+  try {
+    const raw = await AsyncStorage.getItem(KEYS.DAILY_TARGET);
+    if (!raw) return null;
+    const data: DailyTargetData = JSON.parse(raw);
+    return data.date === new Date().toISOString().split("T")[0] ? data.target : null;
+  } catch { return null; }
+}
+
+export async function saveTodaysDailyTarget(target: number): Promise<void> {
+  try {
+    const today = new Date().toISOString().split("T")[0];
+    await AsyncStorage.setItem(KEYS.DAILY_TARGET, JSON.stringify({ date: today, target }));
   } catch {}
 }

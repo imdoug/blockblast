@@ -496,6 +496,7 @@ export default function LevelScreen() {
   const piecesRef  = useRef(piecesRemaining); piecesRef.current = piecesRemaining;
   const phaseRef   = useRef(phase);   phaseRef.current   = phase;
   const recentRef  = useRef(recentIndices); recentRef.current = recentIndices;
+  const PIECES_LIMIT_ENABLED = false;
 
   // Haptics + sound
   const haptics    = useHaptics();
@@ -601,7 +602,7 @@ export default function LevelScreen() {
     // Player doesn't need to use remaining pieces
     if (trueWin(result.newScore)) {
       newPhase = "won";
-    } else if (newPieces <= 0) {
+    } else if (newPieces <= 0 && PIECES_LIMIT_ENABLED){
       newPhase = "failed";
     } else if (!hasAnyValidMove(cleared, finalTray, clearedObs)) {
       newPhase = "stuck";
