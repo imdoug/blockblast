@@ -6,7 +6,7 @@
 // Once completed, the result is locked until midnight UTC.
 
 import {
-  View, Text, Image, StyleSheet, TouchableOpacity,
+  View, Text, Image, ImageBackground, StyleSheet, TouchableOpacity,
   PanResponder, Animated, Dimensions,
 } from "react-native";
 import { useRef, useState, useEffect, useCallback } from "react";
@@ -20,6 +20,7 @@ import {
   loadTodaysDailyTarget, saveTodaysDailyTarget,
 } from "../src/store/storage";
 import { Grid, Piece, Tray } from "../src/types";
+import { useSound } from "../src/hooks/useSound";
 
 // ─── Daily level config ────────────────────────────────────────────────────────
 const DAILY_PIECE_COUNT = 20;
@@ -258,8 +259,14 @@ function AlreadyDoneScreen({ score, stars }: { score: number; stars: number }) {
 
   return (
     <View style={adS.container}>
-      <Text style={adS.icon}>✅</Text>
-      <Text style={adS.title}>Today's done!</Text>
+      <ImageBackground
+        source={require("../assets/icons/Icon-Message.png")}
+        style={adS.banner}
+        imageStyle={adS.bannerImg}
+        resizeMode="contain"
+      >
+        <Text style={adS.bannerTitle}>Today's{"\n"}done!</Text>
+      </ImageBackground>
       <Text style={adS.date}>{formatToday()}</Text>
       <View style={adS.scoreBox}>
         <Text style={adS.scoreLabel}>YOUR SCORE</Text>
@@ -281,7 +288,8 @@ function AlreadyDoneScreen({ score, stars }: { score: number; stars: number }) {
         <Text style={adS.countdown}>{hours}h {mins}m</Text>
       </View>
       <TouchableOpacity style={adS.btn} onPress={() => router.back()}>
-        <Text style={adS.btnText}>← Back</Text>
+        <Image source={require("../assets/icons/arrow-left.png")} style={adS.btnArrow} />
+        <Text style={adS.btnText}>Back</Text>
       </TouchableOpacity>
     </View>
   );
@@ -293,7 +301,19 @@ const adS = StyleSheet.create({
     alignItems: "center", justifyContent: "center",
     padding: 32, gap: 16,
   },
-  icon:  { fontSize: 56 },
+  banner: {
+    width: 230, height: 200,
+    alignItems: "center", justifyContent: "center",
+    marginBottom: 2,
+  },
+  bannerImg: { resizeMode: "contain" },
+  bannerTitle: {
+    color: "#FFFF", fontSize: 42, textAlign: "center", 
+    textShadowColor: "rgba(0,0,0, 1)",
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 3, marginTop: 12,
+     ...TEXT.title, // lineHeight: 38
+  },
   title: { color: COLORS.text,    fontSize: 28, ...TEXT.title },
   date:  { color: COLORS.textDim, fontSize: 14, ...TEXT.body },
     scoreBox: {
@@ -303,7 +323,7 @@ const adS = StyleSheet.create({
     borderWidth: 1, borderColor: "rgba(255,255,255,0.07)",
     overflow: "hidden",
   },
-  scoreLabel: { color: COLORS.textDim, fontSize: 11, letterSpacing: 3, ...TEXT.body },
+  scoreLabel: { color: COLORS.textDim, fontSize: 11, letterSpacing: 3, ...TEXT.body, marginBottom: 12},
   scoreNum:   { color: COLORS.primary, fontSize: 48, ...TEXT.score },
   starsRow:   { flexDirection: "row", gap: 8 },
   star:    { fontSize: 28 },
@@ -316,7 +336,8 @@ const adS = StyleSheet.create({
   },
   countdownLabel: { color: COLORS.textDim, fontSize: 12, ...TEXT.body },
   countdown: { color: COLORS.primary, fontSize: 32, ...TEXT.number },
-  btn:     { marginTop: 8 },
+  btn:     { marginTop: 8, flexDirection: "row", alignItems: "center", gap: 8 },
+  btnArrow:{ width: 26, height: 18, resizeMode: "contain" },
   btnText: { color: COLORS.textDim, fontSize: 16, ...TEXT.nav },
 });
 
@@ -380,7 +401,8 @@ function ResultsOverlay({ phase, score, target, onHome }: {
         <Text style={roS.comeBack}>Come back tomorrow for a new challenge!</Text>
 
         <TouchableOpacity style={roS.btn} onPress={onHome}>
-          <Text style={roS.btnText}>← Home</Text>
+          <Image source={require("../assets/icons/arrow-left.png")} style={roS.btnArrow} />
+          <Text style={roS.btnText}>Home</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -412,7 +434,7 @@ const roS = StyleSheet.create({
     borderRadius: 14, paddingHorizontal: 28, paddingVertical: 12,
     width: "100%", gap: 2,
   },
-  scoreLabel: { color: COLORS.textDim, fontSize: 11, letterSpacing: 3, ...TEXT.body },
+  scoreLabel: { color: COLORS.textDim, fontSize: 11, letterSpacing: 3, ...TEXT.body, marginBottom: 12 },
   scoreNum:   { fontSize: 40, ...TEXT.score },
   gapText:    { color: COLORS.textDim, fontSize: 12, marginTop: 4, ...TEXT.body },
   shareBox: {
@@ -422,7 +444,8 @@ const roS = StyleSheet.create({
   },
   shareText: { color: COLORS.textDim, fontSize: 13, textAlign: "center", lineHeight: 20, ...TEXT.body },
   comeBack:  { color: COLORS.primary, fontSize: 13, textAlign: "center", ...TEXT.body },
-  btn:     { marginTop: 4 },
+  btn:     { marginTop: 4, flexDirection: "row", alignItems: "center", gap: 8 },
+  btnArrow:{ width: 25, height: 17, resizeMode: "contain" },
   btnText: { color: COLORS.textDim, fontSize: 15, ...TEXT.nav },
 });
 
@@ -431,6 +454,8 @@ const roS = StyleSheet.create({
 export default function DailyScreen() {
   const seed = getDailySeed();
   const rng  = seededRandom(seed);
+  const sound    = useSound();                          // ← move here
+  const soundRef = useRef(sound); soundRef.current = sound; // ← move here
 
   // Pre-generate ALL pieces upfront using the difficulty curve.
   // pieceIndex drives the tier; seeded RNG drives the pick within that tier.
@@ -570,6 +595,16 @@ export default function DailyScreen() {
     setCombo(result.newCombo);
     setPiecesPlaced(newPlaced);
     setPhase(newPhase);
+    // Sound triggers
+    if (linesCleared > 0) {
+      soundRef.current.playClear();
+      if (result.newCombo > 1) soundRef.current.playCombo();
+    } else {
+      soundRef.current.playPlace();
+    }
+    if (newPhase === "won") soundRef.current.playWin();
+    else if (newPhase === "stuck") soundRef.current.playFail();
+    
   }, []);
 
   const panResponders = useRef([0, 1, 2].map(idx =>
@@ -639,8 +674,9 @@ export default function DailyScreen() {
       })}
     >
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Text style={styles.back}>← Back</Text>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+          <Image source={require("../assets/icons/arrow-left.png")} style={styles.backArrow} />
+          <Text style={styles.back}>Back</Text>
         </TouchableOpacity>
         {streak > 1 && (
           <View style={styles.streakBadge}>
@@ -743,6 +779,8 @@ const styles = StyleSheet.create({
     flexDirection: "row", alignItems: "center",
     width: "100%", height: 44, marginBottom: 4, gap: 10,
   },
+  backBtn: { flexDirection: "row", alignItems: "center", gap: 6 },
+  backArrow: { width: 24, height: 17, resizeMode: "contain" },
   back: { color: COLORS.textDim, fontSize: 16, ...TEXT.nav },
   streakBadge: {
     backgroundColor: "rgba(255,107,107,0.12)", borderRadius: 8,

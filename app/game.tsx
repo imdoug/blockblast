@@ -148,8 +148,9 @@ function GameOverScreen({
         <TouchableOpacity style={goS.btnPrimary} onPress={onReplay}>
           <Text style={goS.btnPrimaryText}>▶  Play Again</Text>
         </TouchableOpacity>
-        <TouchableOpacity onPress={onHome} style={{ marginTop: 8 }}>
-          <Text style={goS.homeLink}>← Home</Text>
+        <TouchableOpacity onPress={onHome} style={goS.homeBtn}>
+          <Image source={require("../assets/icons/arrow-left.png")} style={goS.btnArrow} />
+          <Text style={goS.homeLink}>Home</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -157,6 +158,8 @@ function GameOverScreen({
 }
 
 const goS = StyleSheet.create({
+  homeBtn: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 8 },
+  btnArrow: { width: 22, height: 16, resizeMode: "contain" },
   overlay: {
     ...StyleSheet.absoluteFill,
     backgroundColor: "rgba(0,0,0,0.82)",
@@ -193,12 +196,14 @@ const goS = StyleSheet.create({
     borderWidth: 1.5, borderColor: "rgba(255,230,109,0.4)",
   },
   scoreLabel: {
-    color: COLORS.textDim, fontSize: 11,
+    color: COLORS.textDim, fontSize: 16,
     fontFamily: "FredokaOne_400Regular", letterSpacing: 3,
+    marginBottom: 12
   },
   scoreNum: {
     color: COLORS.primary, fontSize: 52,
     fontFamily: "LuckiestGuy_400Regular", letterSpacing: 2,
+    lineHeight: 58
   },
   scoreNumRecord: { color: COLORS.accent },
   bestRow: {
@@ -220,13 +225,13 @@ const goS = StyleSheet.create({
     fontFamily: "FredokaOne_400Regular", flex: 1, textAlign: "right",
   },
   statsRow: { flexDirection: "row", gap: 24 },
-  stat: { alignItems: "center" },
+  stat: { alignItems: "center" , marginTop: 12, marginBottom: 12},
   statNum: {
     color: COLORS.text, fontSize: 22,
     fontFamily: "LuckiestGuy_400Regular",
   },
   statLabel: {
-    color: COLORS.textDim, fontSize: 11,
+    color: COLORS.textDim, fontSize: 16,
     fontFamily: "FredokaOne_400Regular",
   },
   btnPrimary: {
@@ -526,9 +531,10 @@ export default function GameScreen() {
     >
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={handleBack}>
-          <Text style={styles.back}>← Back</Text>
-        </TouchableOpacity>
+        <TouchableOpacity onPress={handleBack} style={styles.backBtn}>
+        <Image source={require("../assets/icons/arrow-left.png")} style={styles.backArrow} />
+        <Text style={styles.back}>Back</Text>
+      </TouchableOpacity>
 
         <View style={styles.headerCenter}>
           <Text style={styles.modeLabel}>∞ CLASSIC</Text>
@@ -696,6 +702,8 @@ export default function GameScreen() {
 // ─── Main styles ──────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
+  backBtn:   { flexDirection: "row", alignItems: "center", gap: 6 },
+  backArrow: { width: 22, height: 16, resizeMode: "contain" },
   container: {
     flex: 1, backgroundColor: COLORS.background,
     paddingTop: 52, paddingHorizontal: 16, alignItems: "center",

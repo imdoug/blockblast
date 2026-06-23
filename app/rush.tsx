@@ -19,6 +19,7 @@ import { randomPiece } from "../src/game/pieces";
 import { Grid, Piece, Tray } from "../src/types";
 import { AD_UNIT_IDS } from "../src/constants/config";
 import { loadRushBest, saveRushBest } from "../src/store/storage";
+import { useSound } from "../src/hooks/useSound";
 
 let BannerAd: any = null;
 let BannerAdSize: any = null;
@@ -227,8 +228,9 @@ function ResultsScreen({ score, bestCombo, totalClears, piecesPlaced, reason, on
         <TouchableOpacity style={rsS.btnPrimary} onPress={onReplay}>
           <Text style={rsS.btnText}>⚡  Play Again</Text>
         </TouchableOpacity>
-        <TouchableOpacity onPress={onHome} style={{ marginTop: 8 }}>
-          <Text style={rsS.homeLink}>← Home</Text>
+        <TouchableOpacity onPress={onHome} style={rsS.homeBtn}>
+          <Image source={require("../assets/icons/arrow-left.png")} style={rsS.btnArrow} />
+          <Text style={rsS.homeLink}>Home</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -236,6 +238,8 @@ function ResultsScreen({ score, bestCombo, totalClears, piecesPlaced, reason, on
 }
 
 const rsS = StyleSheet.create({
+  homeBtn:  { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 8 },
+  btnArrow: { width: 22, height: 16, resizeMode: "contain" },
   overlay: {
     ...StyleSheet.absoluteFill,
     backgroundColor: "rgba(0,0,0,0.85)",
@@ -261,22 +265,25 @@ const rsS = StyleSheet.create({
     borderRadius: 14, paddingHorizontal: 40, paddingVertical: 12, width: "100%",
   },
   scoreLabel: {
-    color: COLORS.textDim, fontSize: 11,
+    color: COLORS.textDim, fontSize: 16,
     fontFamily: "FredokaOne_400Regular", letterSpacing: 3,
+    marginBottom: 12
   },
   scoreNum: {
     color: COLORS.accent, fontSize: 52,
     fontFamily: "LuckiestGuy_400Regular", letterSpacing: 2,
+    lineHeight: 58
   },
-  statsRow: { flexDirection: "row", gap: 24 },
+  statsRow: { flexDirection: "row", gap: 24, marginTop: 12, marginBottom: 12},
   stat: { alignItems: "center" },
   statNum: {
     color: COLORS.text, fontSize: 22,
     fontFamily: "LuckiestGuy_400Regular",
   },
   statLabel: {
-    color: COLORS.textDim, fontSize: 11,
+    color: COLORS.textDim, fontSize: 16,
     fontFamily: "FredokaOne_400Regular",
+    marginBottom: 12
   },
   btnPrimary: {
     backgroundColor: COLORS.accent, borderRadius: 14,
@@ -316,6 +323,8 @@ export default function RushScreen() {
   const [timeLeft, setTimeLeft] = useState(60);
   const [totalTime, setTotalTime] = useState(60);
   const clearsAtWindowStart = useRef(0);
+  const sound    = useSound();
+  const soundRef = useRef(sound); soundRef.current = sound;
 
   const gridOrigin = useRef<{ x: number; y: number } | null>(null);
   const containerOrigin = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
@@ -418,6 +427,13 @@ export default function RushScreen() {
     setGhost(null); setGhostValid(false);
     if (isOver) { setPhase("over"); setOverReason("stuck"); }
     if (linesCleared > 0 || basePts > 0) setScorePop({ id: ++popId.current, pts: totalPts, combo: newCombo });
+    if (linesCleared > 0) {
+      soundRef.current.playClear();
+      if (newCombo > 1) soundRef.current.playCombo();
+    } else {
+      soundRef.current.playPlace();
+    }
+    if (isOver) soundRef.current.playFail();
   }, []);
 
   const panResponders = useRef([0, 1, 2].map(idx =>
@@ -486,8 +502,9 @@ export default function RushScreen() {
       onLayout={e => e.target.measure((_x, _y, _w, _h, px, py) => { containerOrigin.current = { x: px, y: py }; })}
     >
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Text style={styles.back}>← Back</Text>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+          <Image source={require("../assets/icons/arrow-left.png")} style={styles.backArrow} />
+          <Text style={styles.back}>Back</Text>
         </TouchableOpacity>
 
         <View style={styles.headerRight}>
@@ -603,6 +620,8 @@ export default function RushScreen() {
 }
 
 const styles = StyleSheet.create({
+  backBtn:   { flexDirection: "row", alignItems: "center", gap: 6 },
+  backArrow: { width: 22, height: 16, resizeMode: "contain" },
   container: {
     flex: 1, backgroundColor: COLORS.background,
     paddingTop: 52, paddingHorizontal: 16, alignItems: "center",

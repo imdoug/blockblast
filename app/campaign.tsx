@@ -189,8 +189,9 @@ export default function CampaignScreen() {
 
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Text style={styles.back}>← Back</Text>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+          <Image source={require("../assets/icons/arrow-left.png")} style={styles.backArrow} />
+          <Text style={styles.back}>Back</Text>
         </TouchableOpacity>
         <Text style={styles.title}>Campaign</Text>
         <View style={styles.starSummary}>
@@ -257,6 +258,8 @@ export default function CampaignScreen() {
 }
 
 const styles = StyleSheet.create({
+  backBtn:   { flexDirection: "row", alignItems: "center", gap: 6 },
+  backArrow: { width: 22, height: 16, resizeMode: "contain" },
   container: {
     flex: 1,
     backgroundColor: COLORS.background,

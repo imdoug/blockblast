@@ -135,8 +135,9 @@ export default function SettingsScreen() {
   return (
     <View style={s.container}>
       <View style={s.header}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Text style={s.back}>← Back</Text>
+        <TouchableOpacity onPress={() => router.back()} style={s.backBtn}>
+          <Image source={require("../assets/icons/arrow-left.png")} style={s.backArrow} />
+          <Text style={s.back}>Back</Text>
         </TouchableOpacity>
         <Text style={s.title}>Settings</Text>
         <View style={{ width: 60 }} />
@@ -208,6 +209,8 @@ export default function SettingsScreen() {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
+  backBtn:   { flexDirection: "row", alignItems: "center", gap: 6, width: 60 },
+  backArrow: { width: 22, height: 16, resizeMode: "contain" },  
   container:     { flex: 1, backgroundColor: COLORS.background, paddingTop: 52 },
   header:        { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, height: 44, marginBottom: 8 },
   back:          { color: COLORS.textDim, fontSize: 16, width: 60, fontFamily: "FredokaOne_400Regular" },

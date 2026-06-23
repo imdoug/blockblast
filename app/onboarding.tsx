@@ -4,7 +4,7 @@
 // 4 slides with animated transitions and mini visual demos.
 
 import {
-  View, Text, StyleSheet, TouchableOpacity,
+  View, Text, StyleSheet, Image, TouchableOpacity,
   Animated, Dimensions,
 } from "react-native";
 import { useRef, useState } from "react";
@@ -79,7 +79,7 @@ function DemoDrag() {
           </View>
         ))}
       </View>
-      <Text style={demoS.arrow}>←</Text>
+      <Image source={require("../assets/icons/arrow-right.png")} style={demoS.arrowImg} />
       {/* Piece being dragged */}
       <View style={demoS.piece}>
         {[[1,1],[1,0]].map((row, r) => (
@@ -119,7 +119,7 @@ function DemoClear() {
           </View>
         ))}
       </View>
-      <Text style={[demoS.arrow, { color: "#FFE66D" }]}>→</Text>
+      <Image source={require("../assets/icons/arrow-right.png")} style={demoS.arrowImg} />
       <View>
         {[0,1,2,3].map(r => (
           <View key={r} style={{ flexDirection: "row" }}>
@@ -170,7 +170,7 @@ function DemoObstacle() {
           </View>
         ))}
       </View>
-      <Text style={[demoS.arrow, { color: "#A67C52" }]}>→</Text>
+      <Image source={require("../assets/icons/arrow-right.png")} style={demoS.arrowImg} />
       <View>
         {[0,1,2,3].map(r => (
           <View key={r} style={{ flexDirection: "row" }}>
@@ -222,9 +222,9 @@ function DemoReady() {
 }
 
 const demoS = StyleSheet.create({
+  arrowImg: { width: 24, height: 18, resizeMode: "contain", tintColor: COLORS.textDim },
   container: { flexDirection: "row", alignItems: "center", gap: 12 },
   grid: {},
-  arrow: { fontSize: 24, color: COLORS.textDim, ...TEXT.title },
   piece: {},
 });
 
@@ -319,9 +319,12 @@ export default function OnboardingScreen() {
         onPress={handleNext}
         activeOpacity={0.85}
       >
-        <Text style={s.nextText}>
-          {isLast ? "Let's Play! ▶" : "Next →"}
-        </Text>
+        <View style={s.nextBtnInner}>
+          <Text style={s.nextText}>
+            {isLast ? "Let's Play!" : "Next"}
+          </Text>
+          <Image source={require("../assets/icons/arrow-right.png")} style={s.nextArrow} />
+        </View>
       </TouchableOpacity>
 
       {/* Subtle page counter */}
@@ -331,6 +334,17 @@ export default function OnboardingScreen() {
 }
 
 const s = StyleSheet.create({
+  nextBtnInner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  nextArrow: {
+    width: 20,
+    height: 15,
+    resizeMode: "contain",
+    tintColor: COLORS.background,
+  },
   container: {
     flex: 1,
     backgroundColor: COLORS.background,

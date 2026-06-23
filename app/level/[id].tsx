@@ -307,9 +307,12 @@ function ResultsScreen({ phase, score, level, onReplay, onNext, onHome, onWatchA
         {isWon ? (
           <>
             {level.id < 99 && (
-              <TouchableOpacity style={rsS.btnPrimary} onPress={onNext}>
-                <Text style={rsS.btnPrimaryText}>Next Level →</Text>
-              </TouchableOpacity>
+             <TouchableOpacity style={rsS.btnPrimary} onPress={onNext}>
+              <View style={rsS.btnInner}>
+                <Text style={rsS.btnPrimaryText}>Next Level</Text>
+                <Image source={require("../../assets/icons/arrow-right.png")} style={rsS.btnArrowRight} />
+              </View>
+            </TouchableOpacity>
             )}
             <TouchableOpacity style={rsS.btnOutline} onPress={onReplay}>
               <Text style={rsS.btnOutlineText}>Play Again</Text>
@@ -318,7 +321,7 @@ function ResultsScreen({ phase, score, level, onReplay, onNext, onHome, onWatchA
         ) : (
           <>
             <TouchableOpacity style={rsS.btnAd} onPress={onWatchAd}>
-              <Text style={rsS.btnAdText}>📺  Watch Ad for +3 Pieces</Text>
+              <Text style={rsS.btnAdText}> Watch Ad for +3 Pieces</Text>
             </TouchableOpacity>
             <TouchableOpacity style={rsS.btnPrimary} onPress={onReplay}>
               <Text style={rsS.btnPrimaryText}>Try Again</Text>
@@ -326,15 +329,20 @@ function ResultsScreen({ phase, score, level, onReplay, onNext, onHome, onWatchA
           </>
         )}
 
-        <TouchableOpacity onPress={onHome} style={{ marginTop: 4 }}>
-          <Text style={rsS.homeLink}>← Levels</Text>
-        </TouchableOpacity>
+       <TouchableOpacity onPress={onHome} style={rsS.homeBtn}>
+        <Image source={require("../../assets/icons/arrow-left.png")} style={rsS.btnArrow} />
+        <Text style={rsS.homeLink}>Levels</Text>
+      </TouchableOpacity>
       </View>
     </View>
   );
 }
 
 const rsS = StyleSheet.create({
+  btnInner:     { flexDirection: "row", alignItems: "center", gap: 8 },
+  btnArrowRight: { width: 20, height: 15, resizeMode: "contain", tintColor: COLORS.background },
+  homeBtn:  { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 4 },
+  btnArrow: { width: 22, height: 16, resizeMode: "contain" },
   overlay: {
     ...StyleSheet.absoluteFill,
     backgroundColor: "rgba(0,0,0,0.82)",
@@ -367,7 +375,7 @@ const rsS = StyleSheet.create({
     width: "100%",
     gap: 2,
   },
-  scoreLabel: { ...TEXT.label, color: COLORS.textDim, fontSize: 11 },
+  scoreLabel: { ...TEXT.label, color: COLORS.textDim, fontSize: 11, marginBottom: 12 },
   scoreNum: { ...TEXT.score, fontSize: 42 },
   gapText: { ...TEXT.hint, color: COLORS.textDim, fontSize: 12, marginTop: 4, textAlign: "center" },
   btnPrimary: {
@@ -811,8 +819,9 @@ export default function LevelScreen() {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={handleBack} style={styles.headerSide}>
-          <Text style={styles.back}>← Levels</Text>
-        </TouchableOpacity>
+        <Image source={require("../../assets/icons/arrow-left.png")} style={styles.backArrow} />
+        <Text style={styles.back}>Levels</Text>
+      </TouchableOpacity>
 
         {/* Logo — centered in header */}
         <View style={styles.headerCenter}>
@@ -1122,7 +1131,8 @@ export default function LevelScreen() {
 // ─── Main styles ──────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-    goalToastSubRow: { flexDirection: "row", alignItems: "center" },
+  backArrow: { width: 22, height: 16, resizeMode: "contain" },
+  goalToastSubRow: { flexDirection: "row", alignItems: "center" },
   container: {
     flex: 1, backgroundColor: COLORS.background,
     paddingTop: 52, paddingHorizontal: 16, alignItems: "center",
